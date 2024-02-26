@@ -55,6 +55,11 @@ Decryption algorithm:
 # We must write an algorithm that samples uniformly at random from this key space
 # We can use a Bernoulli distribution to sample a random number from the key space
 
+'''
+Ensure that message.txt is stored in the same directory as this file
+All the other files will also be written to this directory
+'''
+
 import random
 
 def keygen():
@@ -88,7 +93,7 @@ def PRG(s):  # Takes in one input (key XOR r)
     # Now we calculate the sum
     output = sum(int(s[i]) * a[i] for i in range(n)) % q
 
-    print("Output:", output)
+    # print("Output:", output)
 
     # Now we convert the output to a binary string that is 160 bits long
     output = bin(output)[2:]
@@ -96,8 +101,8 @@ def PRG(s):  # Takes in one input (key XOR r)
     # If the output is less than 160 bits, we pad it with 0's
     output = '0' * (160 - len(output)) + output
 
-    print("Binary Output:", output)
-    print("length of output:", len(output))
+    # print("Binary Output:", output)
+    # print("length of output:", len(output))
 
     return output
 
@@ -111,13 +116,13 @@ def encrypt(message_file, key_file):
     with open(message_file, 'r') as file:
         message = file.read()
 
-    print("Message opened successfully!")
+    # print("Message opened successfully!")
 
     # Read the key file
     with open(key_file, 'r') as file:
         key = file.read()
     
-    print("Key opened successfully!")
+    # print("Key opened successfully!")
 
     # Convert the message into a binary string in chunks of 8 bits
     message_binary = ''.join(format(ord(i), '08b') for i in message)
@@ -125,18 +130,22 @@ def encrypt(message_file, key_file):
     # If the message is less than 160 bits, pad it with 0's
     message_binary = message_binary + '0' * (160 - len(message_binary))
 
-    print("Message in binary is: ", message_binary)
-    print("Length of message:", len(message_binary))
+    # Check if the message is at most 160 bits long
+    if len(message_binary) > 160:
+        raise ValueError('The message is too long')
+    
+    # print("Message in binary is: ", message_binary)
+    # print("Length of message:", len(message_binary))
 
     # Generate r from {0,1}^80 uniformly at random
     r = keygen()
 
     # Now we calculate z = G(k XOR r) XOR m
     s = ''.join('1' if key[i] != r[i] else '0' for i in range(80))  # k XOR r
-    print("s is: ", s)
+    # print("s is: ", s)
     w = PRG(s)  # G(k XOR r)
 
-    print("w is: ", w)
+    # print("w is: ", w)
 
     # Now we process the binary message in chunks of 8 bits
     z = ''.join('1' if w[i] != message_binary[i] else '0' for i in range(len(w)))
@@ -170,7 +179,7 @@ def decrypt(ciphertext_file, key_file):
     m_binary = m_binary.ljust((len(m_binary) + 7) // 8 * 8, '0')
 
     # Convert the binary representation to ASCII characters
-    m_text = ''.join(chr(int(m_binary[i:i+8], 2)) for i in range(0, len(m_binary), 8))
+    m_text = ''.join(chr(int(m_binary[i:i+8], 2)) for i in range(0, len(m_binary), 8)if m_binary[i:i+8] != '00000000')
 
     # Save the decrypted message to a file
     with open('decrypted_message.txt', 'w') as file:
