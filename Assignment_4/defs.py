@@ -1,5 +1,4 @@
 import random
-import sys
 from Crypto.Util import number
 import base64
 import hashlib
@@ -26,7 +25,8 @@ def createH(p, g):
     return h, alpha
 
 def keyGen(h2, alpha, p):
-    # Calculate h2^alpha mod p efficiently using modular exponentiation
+    # Calculate h2^alpha mod p efficiently
+    # This was not working earlier due to requirement of high compute power
     return pow(h2, alpha, p)
 
 # AES functions
@@ -55,26 +55,23 @@ def getSKey(password, salt):
 def encrypt(password, salt, message):
     secret = getSKey(password, salt)
     message = pad(message)
-    iv = get_random_bytes(inputLen)
+    iv = get_random_bytes(inputLen)  # Generate a random IV of length 16
     cipher = AES.new(secret, AES.MODE_CBC, iv)
     cipherBytes = base64.b64encode(iv + cipher.encrypt(message.encode("utf8")))
-    return cipherBytes.decode()
+    return bytes.decode(cipherBytes)
 
 def decrypt(password, salt, textCipher):
     secret = getSKey(password, salt)
     decoded = base64.b64decode(textCipher)
-    iv = decoded[:AES.block_size]
+    iv = decoded[:inputLen]  # Extract IV from the encoded message
+    ciphertext = decoded[inputLen:]
     cipher = AES.new(secret, AES.MODE_CBC, iv)
-    ogBytes = unpad(cipher.decrypt(decoded[inputLen:]))
-    return ogBytes.decode()
+    decrypted = cipher.decrypt(ciphertext)
+    unpadded = unpad(decrypted)
+    return bytes.decode(unpadded)
 
-# Test the updated functions
-fSalt = " "
-secretKey = "password"
-plainText = "abishek bhatia is my name, what is your name? this is a message"
-
-cipherText = encrypt(secretKey, fSalt, plainText)
-print("Cipher-Text: " + cipherText)
-
-decryptedMessage = decrypt(secretKey, fSalt, cipherText)
-print("Decrypted Message: " + decryptedMessage)
+def checkMsg(msg1, msg2):
+    if msg1 == msg2:
+        print("Success! Your message has been successfully decrypted!")
+    else:
+        print("Failure! There is probably something you need to fix")

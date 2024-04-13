@@ -1,6 +1,10 @@
 import socket
 import defs     # Importing the defs.py file to use the functions defined in it
 
+'''
+All print statements that are not required but were created as checks have been commented out
+'''
+
 # Now we need to open the socket 
 serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -35,11 +39,11 @@ def newClient(clientsocket):
 
     # Now we run the first part of the assignment code
     p = defs.genPrime(128)
-    print(f"p is - {p}")
+    # print(f"p is - {p}")
     g = defs.genG(p)
-    print(f"g is - {g}")
+    # print(f"g is - {g}")
     h1, alpha = defs.createH(p, g)
-    print(f"h1 is - {h1}")
+    # print(f"h1 is - {h1}")
 
     # Now we send the values of p, g and h1 to the client
     values = f"{p}, {g}, {h1}"
@@ -48,19 +52,22 @@ def newClient(clientsocket):
     # Now we receive the value of h2 from the client
     h2 = int(clientsocket.recv(1024).decode())
 
-    print(f"h2 is - {h2}")
+    # print(f"h2 is - {h2}")
     # Now we calculate the key using the keyGen function
     key = defs.keyGen(h2, alpha, p)
-    print(f"Key is - {key}")
+    # print(f"Key is - {key}")
 
     # Now we receive the cipher text from the client
     cipherText = clientsocket.recv(1024).decode()
-    print(cipherText) # checks
+    # print(f"CipherText is - {cipherText}") # checks
 
     # Now we decrypt the cipher text
     fSalt = " "
     msg = defs.decrypt(str(key), fSalt, cipherText)
-    print(f"Decrypted message is - {msg}")
+    # print(f"Decrypted message is - {msg}")
+
+    # Now we send the decrypted message back to the client to check
+    clientsocket.send(msg.encode())
 
 # Now we create a loop to ensure that the server is always up and listening for connections
 while True:
