@@ -48,7 +48,19 @@ def newClient(clientsocket):
     # Now we receive the value of h2 from the client
     h2 = int(clientsocket.recv(1024).decode())
 
-    
+    print(f"h2 is - {h2}")
+    # Now we calculate the key using the keyGen function
+    key = defs.keyGen(h2, alpha, p)
+    print(f"Key is - {key}")
+
+    # Now we receive the cipher text from the client
+    cipherText = clientsocket.recv(1024).decode()
+    print(cipherText) # checks
+
+    # Now we decrypt the cipher text
+    fSalt = " "
+    msg = defs.decrypt(str(key), fSalt, cipherText)
+    print(f"Decrypted message is - {msg}")
 
 # Now we create a loop to ensure that the server is always up and listening for connections
 while True:
@@ -57,4 +69,4 @@ while True:
     address = server()
 
     # Once this is closed, We know that the client is disconnected and we can start listening for another connection
-    print("The client has disconnected")
+    print(f"The client has disconnected from address {address}")

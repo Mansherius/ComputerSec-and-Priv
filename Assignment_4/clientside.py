@@ -33,12 +33,21 @@ print(f"h1 is - {h1}")
 
 # Now we need to calculate h2 and beta
 h2, beta = defs.createH(p, g)
+print(f"h2 is - {h2}")
 
 # Now we need to send the value of h2 to the server
 clientsocket.send(str(h2).encode())
 
 # Now we compute the key using the Keygen function
-key = defs.keyGen(h1, beta)
-print(key)
+key = defs.keyGen(h1, beta, p)
+print(f"Key is -{key}")
+
+# Now we have verified that all the keys and everything else are being created, 
+# we can now send the message to the server
+fSalt = " "
+msg = "Hi my name is Mansher and this is test one of the encryption"
+cipherText = defs.encrypt(str(key), fSalt, msg)
+print(f"Cipher Text is - {cipherText}")
+
 
 clientsocket.close()
