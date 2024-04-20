@@ -15,8 +15,8 @@ port = 5000
 
 
 def signup(public_key,client):
-    email = input("Enter email address:")
-    pwd = input("Enter password: ")
+    email = str(input("Enter email address:"))
+    pwd = str(input("Enter password: "))
     conf_pwd = input("Confirm password: ")
     if conf_pwd == pwd:
         # check if pwd is secure
@@ -29,7 +29,11 @@ def signup(public_key,client):
         encrypted_credentials = rsa.encrypt(credentials.encode(), public_key)
         # Send 'encrypted_credentials' to the server
         client.send(("signup\n".encode()+encrypted_credentials))
-        print("You have registered successfully!")
+        response = client.recv(1024).decode()
+        if response == "0":
+            print("Email already exists!")
+        else:
+            print("You have registered successfully!")
     else:
         print("Password is not same as above! \n")
 
@@ -48,6 +52,11 @@ def login(public_key,client):
         print("Login Successful!")
     else:
         print("Login Failed!")
+
+
+def exit(public_key,client):
+    client.send("exit".encode()+b'\n')
+    client.close()
 # Assume 'public_key' is the public key received from the server
 with open("server_public_key.pem", "rb") as key_file:
     public_key_data = key_file.read()
@@ -67,6 +76,8 @@ while 1:
     elif ch == 2:
         login(public_key,client)
     elif ch == 3:
+        client. send("exit".encode()+b'\n')
+        client.close()
         break
     else:
         print("Wrong Choice!")

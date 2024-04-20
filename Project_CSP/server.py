@@ -2,7 +2,6 @@ import sqlite3
 import bcrypt
 import rsa
 import socket
-import os
 
 # The IP Address of the server. We will be using localhost IP Address as the socket's IP Address.
 server_address = '127.0.0.1'
@@ -49,6 +48,10 @@ while True:
     encrypted_credentials = client.recv(1024)
     action, credentials = encrypted_credentials.split(b'\n', 1)  # split using bytes, not string
     action = action.decode()  # decode action to string
+    if action == "exit":
+        print("Client requested to exit.")
+        client.close()
+        break
     credentials = rsa.decrypt(credentials, private_key).decode()
 
     # Extract email and password from credentials
@@ -57,11 +60,19 @@ while True:
 
     # Query the database for the email
     if action == "signup":
+        # check if email is already in the database
+        c.execute("SELECT email FROM users WHERE email = ?", (email,))
+        if c.fetchone() is not None:
+            print("Signup Failed! Email already exists.")
+            client.send("0".encode())
+            client.close()
+            continue
         # If the action is signup, store the new credentials
         hashed_password = bcrypt.hashpw(password_hash.encode(), bcrypt.gensalt())
         c.execute("INSERT INTO users VALUES (?, ?)", (email, hashed_password))
         conn.commit()
         print(f"New credentials stored for email: {email}")
+        client.send("1".encode())
         # print whats in the database
         c.execute("SELECT * FROM users")
         print(c.fetchall())
@@ -79,6 +90,8 @@ while True:
             else:
                 print("Login Failed! Incorrect password.")
                 client.send("0".encode())
-    client.close()
+        else:
+            print("Login Failed! Email not found.")
+            client.send("0".encode())
 server.close()
 conn.close()
