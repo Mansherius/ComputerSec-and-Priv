@@ -7,8 +7,8 @@ import socket
 server_address = '127.0.0.1'
 # The port we will be using for the socket.
 port = 5000
-# Database file path
-db_file = 'credentials.db'
+# Database file path, which should just be the current folder
+db_file = "credentials.db"
 
 # Create a new SQLite database or connect to an existing one
 conn = sqlite3.connect(db_file)
