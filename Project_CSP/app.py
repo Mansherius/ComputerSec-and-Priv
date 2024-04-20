@@ -1,16 +1,20 @@
+# app.py
 from flask import Flask, render_template, request, redirect, session
 import dash
 from dash import html
 from dash import dcc
+import socket
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
+app.secret_key = 'your_secret_key_here'
+
 dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
 
-# Simulated user database (replace with actual database integration)
-users = {'user1': 'password1', 'user2': 'password2'}
+server_address = '127.0.0.1'
+port = 65432
 
-# We will be using an SQLite3 database that will be in another file and will query it from here
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect((server_address, port))
 
 # Login route
 @app.route('/', methods=['GET', 'POST'])
@@ -18,12 +22,13 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        if username in users and users[username] == password:
+        client.send(f"{username}\n{password}".encode())
+        response = client.recv(1024).decode()
+        if response == "1":
             session['username'] = username
             return redirect('/dashboard')
         else:
-            return 'Invalid username or password. Please try again.'
-
+            return render_template('login.html', error='Invalid login credentials')
     return render_template('login.html')
 
 # Dashboard route (protected)
@@ -43,8 +48,35 @@ def logout():
 # Dash layout
 dash_app.layout = html.Div([
     html.H1('Password Manager Dashboard'),
-    html.Div(id='dashboard-content')
+    html.Div(id='dashboard-content'),
+    dcc.Input(id='site-name-input', type='text', placeholder='Enter site name'),
+    html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0),
+    html.Div(id='password-display')
 ])
+
+@dash_app.callback(
+    dash.dependencies.Output('password-display', 'children'),
+    [dash.dependencies.Input('retrieve-password-btn', 'n_clicks')],
+    [dash.dependencies.State('site-name-input', 'value')]
+)
+def retrieve_password(n_clicks, site_name):
+    if n_clicks > 0:
+        if 'username' in session:
+            client.send(f"retrieve,{session['username']},{site_name}".encode())
+            response = client.recv(1024).decode()
+            if response != "Password not found.":
+                return html.Div([
+                    html.H3(f"Password for {site_name}: {response}")
+                ])
+            else:
+                return html.Div([
+                    html.P("Password not found.")
+                ])
+        else:
+            return html.Div([
+                html.P("Please log in to retrieve passwords.")
+            ])
+    return None
 
 if __name__ == '__main__':
     app.run(debug=True)
