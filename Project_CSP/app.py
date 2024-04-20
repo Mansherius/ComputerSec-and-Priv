@@ -1,8 +1,10 @@
 # app.py
-from flask import Flask, render_template, request, redirect, session
+
 import dash
+import dash_core_components as dcc
 from dash import html
-from dash import dcc
+from dash.dependencies import Input, Output, State
+from flask import Flask, render_template, request, redirect, session
 import socket
 
 app = Flask(__name__)
@@ -47,17 +49,20 @@ def logout():
 
 # Dash layout
 dash_app.layout = html.Div([
-    html.H1('Password Manager Dashboard'),
+    html.H1('Password Manager Dashboard', style={'text-align': 'center'}),
     html.Div(id='dashboard-content'),
-    dcc.Input(id='site-name-input', type='text', placeholder='Enter site name'),
-    html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0),
+    html.Hr(),
+    html.Div([
+        dcc.Input(id='site-name-input', type='text', placeholder='Enter site name'),
+        html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0)
+    ], style={'text-align': 'center'}),
     html.Div(id='password-display')
 ])
 
 @dash_app.callback(
-    dash.dependencies.Output('password-display', 'children'),
-    [dash.dependencies.Input('retrieve-password-btn', 'n_clicks')],
-    [dash.dependencies.State('site-name-input', 'value')]
+    Output('password-display', 'children'),
+    [Input('retrieve-password-btn', 'n_clicks')],
+    [State('site-name-input', 'value')]
 )
 def retrieve_password(n_clicks, site_name):
     if n_clicks > 0:
@@ -66,15 +71,15 @@ def retrieve_password(n_clicks, site_name):
             response = client.recv(1024).decode()
             if response != "Password not found.":
                 return html.Div([
-                    html.H3(f"Password for {site_name}: {response}")
+                    html.H3(f"Password for {site_name}: {response}", style={'color': 'green'})
                 ])
             else:
                 return html.Div([
-                    html.P("Password not found.")
+                    html.P("Password not found.", style={'color': 'red'})
                 ])
         else:
             return html.Div([
-                html.P("Please log in to retrieve passwords.")
+                html.P("Please log in to retrieve passwords.", style={'color': 'red'})
             ])
     return None
 
