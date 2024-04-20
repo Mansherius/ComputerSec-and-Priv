@@ -1,7 +1,6 @@
 # app.py
-
 import dash
-import dash_core_components as dcc
+from dash import dcc
 from dash import html
 from dash.dependencies import Input, Output, State
 from flask import Flask, render_template, request, redirect, session
@@ -24,7 +23,10 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        client.send(f"{username}\n{password}".encode())
+        data = (str(username), str(password))
+        data = str(data)
+        # Convert the tuple to a string and send to server
+        client.send(data.encode())
         response = client.recv(1024).decode()
         if response == "1":
             session['username'] = username
