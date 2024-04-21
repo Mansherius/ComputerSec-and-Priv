@@ -8,11 +8,8 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
 dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
-
 server_address = '127.0.0.1'
 port = 65432
-
-
 
 # Home page route
 @app.route('/', methods=['GET', 'POST'])
@@ -43,7 +40,7 @@ def login():
                 session['username'] = username
                 return redirect('/dashboard')
             else:
-                return render_template('login.html', error='Invalid login credentials')
+                return redirect('/login')
     return render_template('login.html')
 
 # Registration route
@@ -123,6 +120,8 @@ dash_app.layout = html.Div([
 def retrieve_password(n_clicks, site_name):
     if n_clicks > 0:
         if 'username' in session:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.connect((server_address, port))
             action = 'retrieve'
             credentials = f"{session['username']},{site_name}"
             client_socket.send(f"{action},{credentials}".encode())
@@ -149,6 +148,8 @@ def retrieve_password(n_clicks, site_name):
 def add_new_site(n_clicks, new_site_name, new_password):
     if n_clicks > 0:
         if 'username' in session:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.connect((server_address, port))
             action = 'add'
             credentials = f"{session['username']},{new_site_name},{new_password}"
             client_socket.send(f"{action},{credentials}".encode())
