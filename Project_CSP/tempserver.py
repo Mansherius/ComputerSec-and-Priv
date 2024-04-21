@@ -82,10 +82,9 @@ def start_server():
         client_socket, addr = server_socket.accept()
         print(f"Connection established from {addr}")
 
-        try:
-            # Receive data from the client
-            data = client_socket.recv(1024).decode()
-            action, args = data.split(',', 1)  # Split into action and arguments
+        # Receive data from the client
+        data = client_socket.recv(1024).decode()
+        action, args = data.split(',', 1)  # Split into action and arguments
 
             if action == 'register':
                 username, password = args.split('\n')
