@@ -7,6 +7,8 @@ from flask import Flask, render_template, request, redirect, session
 import socket
 
 app = Flask(__name__)
+
+# User some keygen() here to make the secret key for the session so that it is encrypted and cannot be accessed by the user side
 app.secret_key = 'your_secret_key_here'
 
 dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
@@ -17,23 +19,50 @@ port = 65432
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect((server_address, port))
 
-# Login route
+# Home page route
 @app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        if 'existing_user' in request.form:
+            return redirect('/login')
+        elif 'new_user' in request.form:
+            return redirect('/register')
+    return render_template('index.html')
+
+# Login route
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        if 'existing_user' in request.form:
+            # Existing user login
+            username = request.form['username']
+            password = request.form['password']
+            data = (username, password)
+            client.send(data.encode())
+            response = client.recv(1024).decode()
+            if response == "1":
+                session['username'] = username
+                return redirect('/dashboard')
+            else:
+                return render_template('login.html', error='Invalid login credentials')
+    return render_template('login.html')
+
+# Registration route
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        # Handle new user registration
         username = request.form['username']
         password = request.form['password']
-        data = (str(username), str(password))
-        data = str(data)
-        # Convert the tuple to a string and send to server
+        data = (username, password)
         client.send(data.encode())
         response = client.recv(1024).decode()
         if response == "1":
             session['username'] = username
             return redirect('/dashboard')
         else:
-            return render_template('login.html', error='Invalid login credentials')
-    return render_template('login.html')
+            return render_template('login.html', error='Registration failed. Please try again.')
+    return render_template('register.html')
 
 # Dashboard route (protected)
 @app.route('/dashboard')
