@@ -151,7 +151,7 @@ def add_new_site(n_clicks, new_site_name, new_password):
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.connect((server_address, port))
             action = 'add'
-            credentials = f"{session['username']},{new_site_name},{new_password}"
+            credentials = f"{session['username']}\n{new_site_name}\n{new_password}"
             client_socket.send(f"{action},{credentials}".encode())
             response = client_socket.recv(1024).decode()
             if response == "1":

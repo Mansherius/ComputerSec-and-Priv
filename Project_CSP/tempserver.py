@@ -111,7 +111,7 @@ def server_stuff(server_socket):
                 server_stuff(server_socket)
 
         elif action == 'retrieve':
-            username, site_name = args.split('/n')
+            username, site_name = args.split('\n')
             print("RETRIEVING PASSWORD...")
             print(f"Username: {username}")
             print(f"Site Name: {site_name}")
@@ -128,7 +128,7 @@ def server_stuff(server_socket):
                 server_stuff(server_socket)
 
         elif action == 'add':
-            username, new_site_name, new_password = args.split('/n')
+            username, new_site_name, new_password = args.split('\n')
             print("ADDING NEW SITE...")
             print(f"Username: {username}")
             print(f"New Site Name: {new_site_name}")
