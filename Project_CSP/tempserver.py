@@ -10,7 +10,7 @@ cur = conn.cursor()
 # Check if the table 'users' already exists in the database
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
 if cur.fetchone() is None:
-    # Create a new table for storing email and password
+    # Create a new table for storing username and password
     cur.execute('''
         CREATE TABLE users (
             username TEXT PRIMARY KEY,
@@ -41,33 +41,62 @@ def login_user(username, password):
     return False
 
 # Function to add a new site with password
-def add_new_site(username, site_name, password):
-    try:
-        cur.execute("INSERT INTO sites (username, site_name, password) VALUES (?, ?, ?)", (username, site_name, password))
+def add_new_site(username, site_name, password,client_socket):
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (username,))
+    if cur.fetchone() is None:
+        cur.execute(f'''
+            CREATE TABLE {username} (
+                service TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                user TEXT NOT NULL
+            );
+        ''')
+        print(f"New table '{username}' created in {DATABASE_NAME}")
+    else:
+        print(f"Table '{username}' already exists in {DATABASE_NAME}")
+    # check if the user already exists in the database
+    cur.execute(f"SELECT user FROM {username} WHERE service = ?", (site_name,))
+    if cur.fetchone() is not None:
+        # if there already exists details for the service, ask the user if they want to update the details
+        print("Details already exist for the service!")
+        client_socket.send("2".encode())
+        response = client_socket.recv(1024).decode()
+        if response == "yes":
+            # update the username and the password for the service
+            cur.execute(f"UPDATE {username} SET user = ?, password = ? WHERE service = ?", (username, password, site_name))
+            conn.commit()
+            print(f"Details updated for username: {username}")
+            client_socket.send("1".encode())
+            # print whats in the entire credentials database
+            cur.execute("SELECT * FROM users")
+            print(cur.fetchall())
+            return True
+        else:
+            print("Details not updated!")
+            client_socket.send("0".encode())
+            return False
+    else:
+        # insert values such that the key is the user and the value is the password and service
+        cur.execute(f"INSERT INTO {username} VALUES (?, ?, ?)", (username, password, site_name))
         conn.commit()
-        print(f"New site '{site_name}' added for user '{username}'")
+        print(f"New details stored for username: {username}")
+        client_socket.send("1".encode())
+        # print whats in the entire credentials database
+        cur.execute("SELECT * FROM users")
+        print(cur.fetchall())
         return True
-    except sqlite3.IntegrityError:
-        print(f"Site '{site_name}' already exists for user '{username}'")
-        return False
-    except Exception as e:
-        print(f"Error adding new site: {e}")
-        return False
 
 # Function to retrieve password for a specific site
 def retrieve_password(username, site_name):
-    try:
-        cur.execute("SELECT password FROM sites WHERE username = ? AND site_name = ?", (username, site_name))
-        result = cur.fetchone()
-        if result:
-            password = result[0]
-            print(f"Password retrieved for site '{site_name}' of user '{username}'")
-            return password
-        else:
-            print(f"Password not found for site '{site_name}' of user '{username}'")
-            return None
-    except Exception as e:
-        print(f"Error retrieving password: {e}")
+    cur.execute(f"SELECT user, password FROM {username} WHERE service = ?", (site_name,))
+    if cur.fetchone() is not None:
+        # if the service exists, send the details to the client
+        cur.execute(f"SELECT user, password FROM {username} WHERE service = ?", (site_name,))
+        user, pword = cur.fetchone()
+        print(f"Details for service: {site_name} are {user}, {pword}")
+        return pword
+    else:
+        print("Details do not exist for the service!")
         return None
 
 def server_stuff(server_socket):
@@ -135,7 +164,7 @@ def server_stuff(server_socket):
             print(f"New Password: {new_password}")
 
             # Implement logic to add a new site with the provided password
-            if add_new_site(username, new_site_name, new_password):
+            if add_new_site(username, new_site_name, new_password, client_socket):
                 client_socket.send("1".encode())  # New site added successfully
                 client_socket.close()
                 server_stuff(server_socket)
