@@ -1,17 +1,10 @@
-# app.py
 import dash
-from dash import dcc
-from dash import html
+from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from flask import Flask, render_template, request, redirect, session
 import socket
-import rsa
-import hashlib
-
 
 app = Flask(__name__)
-
-# User some keygen() here to make the secret key for the session so that it is encrypted and cannot be accessed by the user side
 app.secret_key = 'your_secret_key_here'
 
 dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
@@ -19,8 +12,8 @@ dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
 server_address = '127.0.0.1'
 port = 65432
 
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect((server_address, port))
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client_socket.connect((server_address, port))
 
 # Home page route
 @app.route('/', methods=['GET', 'POST'])
@@ -40,9 +33,12 @@ def login():
             # Existing user login
             username = request.form['username']
             password = request.form['password']
-            data = (username, password)
-            client.send(data.encode())
-            response = client.recv(1024).decode()
+            credentials = f"{username}\n{password}"
+            # Send the credentials along with the action to the server
+            action = 'login'
+            client_socket.send(f"{action},{credentials}".encode())
+
+            response = client_socket.recv(1024).decode()
             if response == "1":
                 session['username'] = username
                 return redirect('/dashboard')
@@ -54,17 +50,25 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        # Handle new user registration
         username = request.form['username']
         password = request.form['password']
-        data = (username, password)
-        client.send(data.encode())
-        response = client.recv(1024).decode()
-        if response == "1":
-            session['username'] = username
-            return redirect('/dashboard')
+
+        if username and password:
+            credentials = f"{username}\n{password}"
+            # Send the credentials along with the action to the server
+            action = 'register'
+            client_socket.send(f"{action},{credentials}".encode())
+            
+            response = client_socket.recv(1024).decode()
+            if response == "1":
+                session['username'] = username
+                return redirect('/dashboard')
+            else:
+                return render_template('register.html', error='Registration failed. Please try again.')
         else:
-            return render_template('login.html', error='Registration failed. Please try again.')
+            # Handle case where username or password is empty
+            return render_template('register.html', error='Username and password are required.')
+
     return render_template('register.html')
 
 # Dashboard route (protected)
@@ -101,8 +105,8 @@ dash_app.layout = html.Div([
 def retrieve_password(n_clicks, site_name):
     if n_clicks > 0:
         if 'username' in session:
-            client.send(f"retrieve,{session['username']},{site_name}".encode())
-            response = client.recv(1024).decode()
+            client_socket.send(f"retrieve,{session['username']},{site_name}".encode())
+            response = client_socket.recv(1024).decode()
             if response != "Password not found.":
                 return html.Div([
                     html.H3(f"Password for {site_name}: {response}", style={'color': 'green'})
