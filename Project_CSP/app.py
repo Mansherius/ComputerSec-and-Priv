@@ -73,6 +73,8 @@ def register():
 
 # Dashboard route (protected)
 @app.route('/dashboard')
+# Check if the user is logged in before accessing the dashboard
+# Also create the various buttons and input fields for the dashboard
 def dashboard():
     if 'username' in session:
         return dash_app.index()
@@ -86,16 +88,31 @@ def logout():
     return redirect('/')
 
 # Dash layout
+'''
+Will have two functions that this page can do:
+function 1: retrieve password for a specific site
+function 2: add a new site and password
+'''
 dash_app.layout = html.Div([
     html.H1('Password Manager Dashboard', style={'text-align': 'center'}),
     html.Div(id='dashboard-content'),
     html.Hr(),
+    # Retrieve Password Section
     html.Div([
         dcc.Input(id='site-name-input', type='text', placeholder='Enter site name'),
         html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0)
     ], style={'text-align': 'center'}),
-    html.Div(id='password-display')
+    html.Div(id='password-display'),
+    html.Hr(),
+    # Add New Site Section
+    html.Div([
+        dcc.Input(id='new-site-input', type='text', placeholder='Enter new site name'),
+        dcc.Input(id='new-password-input', type='password', placeholder='Enter new password'),
+        html.Button('Add Site', id='add-site-btn', n_clicks=0)
+    ], style={'text-align': 'center'}),
+    html.Div(id='add-site-output')
 ])
+
 
 @dash_app.callback(
     Output('password-display', 'children'),
@@ -105,7 +122,9 @@ dash_app.layout = html.Div([
 def retrieve_password(n_clicks, site_name):
     if n_clicks > 0:
         if 'username' in session:
-            client_socket.send(f"retrieve,{session['username']},{site_name}".encode())
+            action = 'retrieve'
+            credentials = f"{session['username']},{site_name}"
+            client_socket.send(f"{action},{credentials}".encode())
             response = client_socket.recv(1024).decode()
             if response != "Password not found.":
                 return html.Div([
@@ -121,5 +140,33 @@ def retrieve_password(n_clicks, site_name):
             ])
     return None
 
+@dash_app.callback(
+    Output('add-site-output', 'children'),
+    [Input('add-site-btn', 'n_clicks')],
+    [State('new-site-input', 'value'), State('new-password-input', 'value')]
+)
+def add_new_site(n_clicks, new_site_name, new_password):
+    if n_clicks > 0:
+        if 'username' in session:
+            action = 'add'
+            credentials = f"{session['username']},{new_site_name},{new_password}"
+            client_socket.send(f"{action},{credentials}".encode())
+            response = client_socket.recv(1024).decode()
+            if response == "1":
+                return html.Div([
+                    html.P(f"New site '{new_site_name}' added successfully!", style={'color': 'green'})
+                ])
+            else:
+                return html.Div([
+                    html.P("Failed to add new site. Please try again.", style={'color': 'red'})
+                ])
+        else:
+            return html.Div([
+                html.P("Please log in to add new sites.", style={'color': 'red'})
+            ])
+    return None
+
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
