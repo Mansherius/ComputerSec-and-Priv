@@ -32,41 +32,36 @@ def register_user(username, password):
     conn.commit()
     return True
 
-def start_server():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('127.0.0.1', 65432))
-    server_socket.listen(1)
-
-    print("Server listening on port 65432...")
-
-    while True:
-        # Accept incoming connection and get client socket
+def server_stuff(server_socket):
+    # Accept incoming connection and get client socket
         client_socket, addr = server_socket.accept()
         print(f"Connection established from {addr}")
 
-        try:
-            # Receive data from the client
-            data = client_socket.recv(1024).decode()
-            action, args = data.split(',', 1)  # Split into action and arguments
+        # Receive data from the client
+        data = client_socket.recv(1024).decode()
+        action, args = data.split(',', 1)  # Split into action and arguments
 
-            if action == 'register':
-                username, password = args.split('\n')
-                print("REGISTERING USER...")
-                print(f"Username: {username}")
-                print(f"Password: {password}")
+        if action == 'register':
+            username, password = args.split('\n')
+            print("REGISTERING USER...")
+            print(f"Username: {username}")
+            print(f"Password: {password}")
+            # Register the user and send response to client
+            if register_user(username, password):
+                client_socket.send("1".encode())  # User registered successfully
 
-                # Register the user and send response to client
-                if register_user(username, password):
-                    client_socket.send("1".encode())  # User registered successfully
-                else:
-                    client_socket.send("0".encode())  # User registration failed (username already exists)
+            else:
+                client_socket.send("0".encode())  # User registration failed (username already exists)
+                client_socket.close()
+                server_stuff(server_socket)
+def start_server():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('127.0.0.1', 65432))
+    server_socket.listen(5)
+    print("Server listening on port 65432...")
+    server_stuff(server_socket)
+      # Close the connection after processing the request
 
-        except Exception as e:
-            print(f"Error processing client data: {e}")
-
-        finally:
-            # Close the client socket
-            client_socket.close()
 
 if __name__ == '__main__':
     start_server()

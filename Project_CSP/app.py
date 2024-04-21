@@ -12,8 +12,7 @@ dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
 server_address = '127.0.0.1'
 port = 65432
 
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client_socket.connect((server_address, port))
+
 
 # Home page route
 @app.route('/', methods=['GET', 'POST'])
@@ -30,6 +29,8 @@ def index():
 def login():
     if request.method == 'POST':
         if 'existing_user' in request.form:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.connect((server_address, port))
             # Existing user login
             username = request.form['username']
             password = request.form['password']
@@ -37,7 +38,6 @@ def login():
             # Send the credentials along with the action to the server
             action = 'login'
             client_socket.send(f"{action},{credentials}".encode())
-
             response = client_socket.recv(1024).decode()
             if response == "1":
                 session['username'] = username
@@ -50,6 +50,8 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((server_address, port))
         username = request.form['username']
         password = request.form['password']
 
@@ -64,11 +66,10 @@ def register():
                 session['username'] = username
                 return redirect('/dashboard')
             else:
-                return render_template('register.html', error='Registration failed. Please try again.')
+                return redirect('/register')
         else:
             # Handle case where username or password is empty
-            return render_template('register.html', error='Username and password are required.')
-
+            return redirect('/register')
     return render_template('register.html')
 
 # Dashboard route (protected)
@@ -122,4 +123,4 @@ def retrieve_password(n_clicks, site_name):
     return None
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
