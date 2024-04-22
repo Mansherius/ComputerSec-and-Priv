@@ -25,9 +25,9 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((server_address, port))
         if 'existing_user' in request.form:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect((server_address, port))
             # Existing user login
             username = request.form['username']
             password = request.form['password']
@@ -89,7 +89,7 @@ def logout():
 '''
 Will have two functions that this page can do:
 function 1: retrieve password for a specific site
-function 2: add a new site and password
+function 2: add a new site, name and password
 '''
 dash_app.layout = html.Div([
     html.H1('Password Manager Dashboard', style={'text-align': 'center'}),
@@ -104,12 +104,14 @@ dash_app.layout = html.Div([
     html.Hr(),
     # Add New Site Section
     html.Div([
-        dcc.Input(id='new-site-input', type='text', placeholder='Enter new site name'),
+        dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name'),
+        dcc.Input(id='new-name-input', type='text', placeholder='Enter your name'),
         dcc.Input(id='new-password-input', type='password', placeholder='Enter new password'),
         html.Button('Add Site', id='add-site-btn', n_clicks=0)
     ], style={'text-align': 'center'}),
     html.Div(id='add-site-output')
 ])
+
 
 
 @dash_app.callback(
@@ -118,56 +120,67 @@ dash_app.layout = html.Div([
     [State('site-name-input', 'value')]
 )
 def retrieve_password(n_clicks, site_name):
-    if n_clicks > 0:
-        if 'username' in session:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect((server_address, port))
-            action = 'retrieve'
-            credentials = f"{session['username']},{site_name}"
-            client_socket.send(f"{action},{credentials}".encode())
-            response = client_socket.recv(1024).decode()
-            if response != "Password not found.":
-                return html.Div([
-                    html.H3(f"Password for {site_name}: {response}", style={'color': 'green'})
-                ])
-            else:
-                return html.Div([
-                    html.P("Password not found.", style={'color': 'red'})
-                ])
-        else:
-            return html.Div([
-                html.P("Please log in to retrieve passwords.", style={'color': 'red'})
-            ])
-    return None
+    if n_clicks is None or n_clicks == 0:
+        return None
+
+    if 'username' not in session:
+        return html.Div([
+            html.P("Please log in to retrieve passwords.", style={'color': 'red'})
+        ])
+
+    # Create a new client socket and connect to the server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((server_address, port))
+
+    action = 'retrieve'
+    credentials = f"{session['username']}\n{site_name}"
+    client_socket.send(f"{action},{credentials}".encode())
+    response = client_socket.recv(1024).decode()
+
+    client_socket.close()  # Close the socket after receiving the response
+
+    if response != "Password not found.":
+        return html.Div([
+            html.H3(f"Password for {site_name}: {response}", style={'color': 'green'})
+        ])
+    else:
+        return html.Div([
+            html.P("Password not found.", style={'color': 'red'})
+        ])
 
 @dash_app.callback(
     Output('add-site-output', 'children'),
     [Input('add-site-btn', 'n_clicks')],
-    [State('new-site-input', 'value'), State('new-password-input', 'value')]
+    [State('new-site-name-input', 'value'), State('new-password-input', 'value'), State('new-name-input', 'value')]
 )
-def add_new_site(n_clicks, new_site_name, new_password):
-    if n_clicks > 0:
-        if 'username' in session:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect((server_address, port))
-            action = 'add'
-            credentials = f"{session['username']}\n{new_site_name}\n{new_password}"
-            client_socket.send(f"{action},{credentials}".encode())
-            response = client_socket.recv(1024).decode()
-            if response == "1":
-                return html.Div([
-                    html.P(f"New site '{new_site_name}' added successfully!", style={'color': 'green'})
-                ])
-            else:
-                return html.Div([
-                    html.P("Failed to add new site. Please try again.", style={'color': 'red'})
-                ])
-        else:
-            return html.Div([
-                html.P("Please log in to add new sites.", style={'color': 'red'})
-            ])
-    return None
+def add_new_site(n_clicks, new_site_name, new_password, new_name):
+    if n_clicks is None or n_clicks == 0:
+        return None
 
+    if 'username' not in session:
+        return html.Div([
+            html.P("Please log in to add new sites.", style={'color': 'red'})
+        ])
+
+    # Create a new client socket and connect to the server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((server_address, port))
+
+    action = 'add'
+    credentials = f"{session['username']}\n{new_site_name}\n{new_password}\n{new_name}"
+    client_socket.send(f"{action},{credentials}".encode())
+    response = client_socket.recv(1024).decode()
+
+    client_socket.close()  # Close the socket after receiving the response
+
+    if response == "1":
+        return html.Div([
+            html.P(f"New site '{new_site_name}' added successfully!", style={'color': 'green'})
+        ])
+    else:
+        return html.Div([
+            html.P("Failed to add new site. Please try again.", style={'color': 'red'})
+        ])
 
 
 if __name__ == '__main__':
