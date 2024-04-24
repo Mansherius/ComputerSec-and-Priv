@@ -73,11 +73,6 @@ def keygen():
 
     return key
 
-key = keygen()
-# Save the key to a file
-with open('key.txt', 'w') as file:
-    file.write(key)
-
 # Now we create the PRG
 # We will use the subset sum PRG
 # The PRG G: {0,1}^80 -> {0,1}^160
@@ -186,5 +181,71 @@ def decrypt(ciphertext_file, key_file):
         file.write(m_text)
 
 # Now we test the encryption and decryption algorithms
-encrypt('message.txt', 'key.txt')
-decrypt('ciphertext.txt', 'key.txt')
+# encrypt('message.txt', 'key.txt')
+# decrypt('ciphertext.txt', 'key.txt')
+
+# Now we make the entire encryption program usable by a user
+
+def main():
+    print("Welcome to the PRG Encryption Scheme!")
+
+    while True:
+        # let us create cases for the user to choose from
+        switcher = {
+            1: "Encrypt a message",
+            2: "Decrypt a message",
+            3: "Exit"
+        }
+
+        print("Please choose from the following options: (only input a nummber)")
+        print("1. Encrypt a message")
+        print("2. Decrypt a message")
+        print("3. Exit")
+
+        choice = int(input())
+        print(switcher.get(choice, "Invalid choice"))
+
+        if choice == 1:
+            print("Please enter the name of the file you would like to encrypt: (please be accurate with the naming convention to avoid errors)")
+            message_file = input()
+            print("Please enter the name of the file you would like to save the key to:")
+            key_file = input()
+
+            print("Do you want the program to generate a key for you or do you have your own? (Enter 'gen' or 'own')")
+            choice1 = input()
+            if choice1 == 'own':
+                print("Please enter the name of the file containing the key:")
+                key_file = input()
+            elif choice1 == 'gen': 
+                # Generate the key
+                key = keygen()
+                # Save the key to a file
+                with open(key_file, 'w') as file:
+                    file.write(key)
+
+                print("The key has been saved to", key_file)
+
+            else: 
+                print("Invalid choice, please try again")
+                break
+
+            print("Encrypting the message, once done, the ciphertext will be saved to 'ciphertext.txt'")
+            encrypt(message_file, key_file)
+
+        if choice == 2:
+            print("Please enter the name of the file you would like to decrypt: (please be accurate with the naming convention to avoid errors)")
+            cipher = input()
+
+            print("Please enter the name of the file containing the key:")
+            key_file = input()
+
+            print("Decrypting the message, once done, the decrypted message will be saved to 'decrypted_message.txt'")
+            decrypt(cipher, key_file)
+
+        if choice == 3:
+            print("Exiting the program")
+            break
+    print("Thank you for using my encryption software! Have a great day!")
+
+if __name__ == '__main__':
+    main()
