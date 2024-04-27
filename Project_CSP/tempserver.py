@@ -101,6 +101,21 @@ def retrieve_password(username, site_name):
         print("Details do not exist for the service!")
         return None
 
+def challenge(pk,m,sigma):
+    p,g,h= pk
+    c,z = sigma
+    j= ((g.mod_pow(z, p))*(h.mod_pow(c, p))).mod_inverse(p)
+    # concatenate the message and the challenge
+    m_prime= str(j)+m
+    # hash the concatenated message
+    h_prime= hashlib.sha256(m_prime.encode()).hexdigest()
+    print(f"Hash of the concatenated message: {h_prime}")
+    # check if the hash is equal to the challenge
+    if h_prime.decode()==c:
+        return True
+    else:
+        return False
+
 def server_stuff(server_socket):
     # Accept incoming connection and get client socket
         client_socket, addr = server_socket.accept()
@@ -195,7 +210,30 @@ def start_server():
     server_socket.bind(('127.0.0.1', 65432))
     server_socket.listen(5)
     print("Server listening on port 65432...")
-    server_stuff(server_socket)
+    client_socket, addr = server_socket.accept()
+    print(f"Connection established from {addr}")
+    msg= client_socket.recv(1024)
+    if msg.decode()=="hello":
+        print("Hello received from client")
+        # send a message initiating the handshake
+        client_socket.send("hello".encode())
+        # receive the public key from the client
+        data = client_socket.recv(1024)
+        # decode the public key and message from the client
+        data= data.decode()
+        print(f"Received data: {data}")
+        public_key_data, m, sigma = data.split(',')
+        challenger= challenge(public_key_data, m, sigma)
+        if challenger:
+            # send message approved to client
+            client_socket.send("approved".encode())
+            server_stuff(server_socket)
+
+        else:
+            # send message denied to client
+            client_socket.send("denied".encode())
+            client_socket.close()
+            start_server()
 
 if __name__ == '__main__':
     start_server()

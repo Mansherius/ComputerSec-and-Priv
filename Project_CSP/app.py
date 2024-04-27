@@ -2,10 +2,141 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from flask import Flask, render_template, request, redirect, session
+from flask import g as dbg
 import socket
 import rsa
 import hashlib
+import sqlite3
+from petlib.bn import Bn
+from Crypto.Util import number
+import os
 
+DATABASE_NAME= "user_authentication.db" # database that stores user information to authenticate user
+# Connect to the database
+conn = sqlite3.connect(DATABASE_NAME)
+cur = conn.cursor()
+
+def create_table_if_not_exists(cur, table_name, columns):
+    cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+    if cur.fetchone() is None:
+        # Create a new table
+        cur.execute(f'''
+            CREATE TABLE {table_name} (
+                {columns}
+            );
+        ''')
+        print(f"New table '{table_name}' created")
+    else:
+        print(f"Table '{table_name}' exists")
+
+# Define the columns for the 'users' table
+users_columns = '''
+    username TEXT PRIMARY KEY,
+    password TEXT NOT NULL
+'''
+
+# Define the columns for the 'users_pk' table
+users_pk_columns = '''
+    username TEXT PRIMARY KEY,
+    p TEXT NOT NULL,
+    g TEXT NOT NULL,
+    h1 TEXT NOT NULL
+'''
+
+# Call the function for creating the 'users' table
+create_table_if_not_exists(cur, 'users', users_columns)
+
+# Call the function for creating the 'users_pk' table
+create_table_if_not_exists(cur, 'users_pk', users_pk_columns)
+
+# Create a database to store the alpha values for each user
+create_table_if_not_exists(cur, 'users_alpha', 'username TEXT PRIMARY KEY, alpha TEXT NOT NULL')
+
+def get_db():
+    db = getattr(dbg, '_database', None)
+    if db is None:
+        db = dbg._database = sqlite3.connect(DATABASE_NAME)
+    return db
+def generate_prime(size=128):
+    prime = Bn.get_prime(size)
+    return prime
+
+# Function to generate a co-prime number to p, which is the group generator.
+def generate_g(p):
+    # Generate a random number smaller than p
+    q = p.random()
+    return q
+
+# Function to create h1 and alpha.
+def create_h(p, g):
+    # choose alpha uniformly from {1, . . . , p-1}
+    alpha = p.random()
+    print("alpha:",alpha)
+    h = g.mod_pow(alpha, p)
+    return h,alpha
+
+
+# Register new user
+def register_user(username, password):
+    conn = get_db()
+    cur = conn.cursor()
+    # check if the username starts with a number, if yes then return false
+    username= str(username) 
+    if username[0].isdigit():
+        print("Username cannot start with a number!")
+        return False
+    cur.execute("SELECT username FROM users WHERE username = ?", (username,))
+    if cur.fetchone() is not None:
+        print("THE USER ALREADY EXISTS")
+        return False
+    cur.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+    conn.commit()
+    return True
+
+# Login user
+def login_user(username, password):
+    conn=get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT username FROM users WHERE username = ? AND password = ?", (username, password))
+    if cur.fetchone() is not None:
+        print("LOGIN SUCCESSFUL")
+        return True
+    return False
+
+def schnorr_sign(m,p,g,h1,alpha,client_socket):
+    # convert m to binary 
+    m= bin(int.from_bytes(m.encode(), 'big'))
+    # print the data types of all the values
+    print("m:",type(m), "p:",type(p), "g:",type(g), "h1:",type(h1), "alpha:",type(alpha))
+    # convert all of them into big numbers
+    p,g,h1,alpha= Bn.from_decimal(p), Bn.from_decimal(g), Bn.from_decimal(h1), Bn.from_decimal(alpha)
+    # generate a random number x
+    beta= p.random()
+    # compute y= g^x mod p
+    y= g.mod_pow(beta,p)
+    # send y to the server
+    client_socket.send(str(y).encode())
+    # create the challenge c such that c= H(y||m)
+    conc= str(y)+str(m)
+    c= hashlib.sha256(conc.encode()).hexdigest()
+    print("c:",type(c))
+    print("c:",c)
+    c= Bn.from_hex(c)
+    # send c to the server
+    client_socket.send(str(c).encode())
+    print("c:",type(c))
+    # compute the response z= x+ alpha*c mod (p-1)
+    z= (beta+alpha*c).mod(p-1)
+    print("z:",type(z))
+    print("z:",z)
+    # send z to the server
+    client_socket.send(str(z).encode())
+    # receive the server's response
+    response= client_socket.recv(1024).decode()
+    if response=="success":
+        return True
+    else:
+        return False
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -23,6 +154,13 @@ with open("server_public_key.pem", "rb") as key_file:
 # format the key data as a public key
 public_key_server = rsa.PublicKey.load_pkcs1(public_key_data)
 
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(dbg, '_database', None)
+    if db is not None:
+        db.close()
+
 # Home page route
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -39,23 +177,34 @@ def login():
         if 'new_user' in request.form:
             return redirect('/register')
         elif 'existing_user' in request.form:
+            conn=get_db()
+            cur = conn.cursor()
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.connect((server_address, port))
             # Existing user login
             username = request.form['username']
             password = request.form['password']
             # Encrypt the information before sending it to the server
-            auth = password.encode()
-            action = 'login'
-            auth_hash = hashlib.md5(auth).hexdigest() 
-            credentials = f"{action},{username}\n{auth_hash}"
-            encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
-            # Send the credentials along with the action to the server
-            client_socket.send(encrypted_credentials)
-            response = client_socket.recv(1024).decode()
-            if response == "1":
-                session['username'] = username
-                return redirect('/dashboard')
+            response= login_user(username, password)  
+            if response == True:
+                ###Schnorr signature stuff here###
+                # Send server a hello message, initiating the Schnorr protocol
+                client_socket.send("hello".encode())
+                r= client_socket.recv(1024).decode()
+                if r=="hello":
+                    # get the user's pk and alpha from the database
+                    cur.execute("SELECT p, g, h1 FROM users_pk WHERE username = ?", (username,))
+                    p,g,h1= cur.fetchone()
+                    cur.execute("SELECT alpha FROM users_alpha WHERE username = ?", (username,))
+                    alpha= cur.fetchone()
+                    # convert alpha into a string
+                    alpha= alpha[0]
+                    res= schnorr_sign(username,p,g,h1,alpha,client_socket)
+                    if res==True:
+                        session['username'] = username
+                        return redirect('/dashboard')
+                    else:
+                        return redirect('/login')
             else:
                 return redirect('/login')
     return render_template('login.html')
@@ -64,24 +213,25 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((server_address, port))
         username = str(request.form['username'])
         password = str(request.form['password'])
-
         if username and password:
-            # Encrypt the information before sending it to the server
-            enc = password.encode()
-            hash1 = hashlib.md5(enc).hexdigest()
-            action = 'register'
-            credentials = f"{action},{username}\n{hash1}"
-            encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
-            # Send the credentials along with the action to the server
-            client_socket.send(encrypted_credentials)
-            response = client_socket.recv(1024).decode()
-            if response == "1":
+            response= register_user(username, password)
+            if response == True:
+                p = generate_prime(128)
+                g = generate_g(p)
+                h1,alpha= create_h(p,g)
+                # convert the big numbers into a data type such that their big number values are preserved
+                p, g, h1, alpha = str(p), str(g), str(h1), str(alpha)
+                # store the alpha in the database using the username as the key
+                conn=get_db()
+                cur = conn.cursor()
+                cur.execute('INSERT INTO users_pk (username, p, g, h1) VALUES (?, ?, ?, ?)', (username, p, g, h1))
+                conn.commit()
+                cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, alpha))
+                conn.commit()
                 session['username'] = username
-                return redirect('/dashboard')
+                return redirect('/login')
             else:
                 return redirect('/register')
         else:
