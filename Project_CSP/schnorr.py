@@ -34,16 +34,17 @@ def sign(message, secret_key, p, g, h):
     y = pow(g, beta, p)
     c = H(y, message) % p
     z = (beta + secret_key * c) % (p - 1)
-    return (c, z)
+    return c, z
 
-def verify(signature, p, g, h, message):
-    c, z = signature
+def verify(c, z, p, g, h, message):
     j = (pow(g, z, p) * pow(pow(h, c, p),-1,p)) % p
     print(j)
     m_hash = H(j, message) % p
     print(m_hash, c)
     return m_hash == c
 
+
+'''
 # Example usage
 public_key, private_key = keygen()
 print("Public Key:", public_key)
@@ -57,8 +58,9 @@ message = ''.join(format(ord(i), '08b') for i in message)
 
 print("Message:", message)
 
-signature = sign(message, private_key, p, g, h)
-print("Signature:", signature)
+signatureC, signatureZ = sign(message, private_key, p, g, h)
+print("Signature:", signatureC, signatureZ)
 
-verification = verify(signature, p, g, h, message)
+verification = verify(signatureC, signatureZ, p, g, h, message)
 print("Signature Verification Result:", verification)
+'''

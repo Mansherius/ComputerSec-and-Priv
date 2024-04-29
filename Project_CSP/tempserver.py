@@ -209,16 +209,22 @@ def schnorr_stuff(client_socket):
     data= client_socket.recv(1024).decode()
     print(f"Received data: {data}")
     # split the data into the signature, public key and the message
-    signature, public_key, message = data.split(',')
-    p, g, h= public_key[1], public_key[0], public_key[2]
-    verification = schnorr.verify(signature, p, g, h, message)
-    if verification==True:
-        # send message approved to client
+    message, p, g, h, signatureC, signatureZ = data.split('\n')
+    print("P is", p)
+    print("G is", g)
+    print("H is", h)
+    print("C is", signatureC)
+    print("Z is", signatureZ)
+    verification = schnorr.verify(int(signatureC), int(signatureZ), int(p), int(g), int(h), message)
+    if verification == True:
+        # send message approved to clienta
         client_socket.send("True".encode())
+        print("YAYY YOU ARE NOT A TOTAL IDIOT")
         return True
     else:
         # send message denied to client
         client_socket.send("False".encode())
+        print("FALSEE BITCHHH")
         client_socket.close()
         return False
 

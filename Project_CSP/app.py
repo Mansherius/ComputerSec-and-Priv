@@ -143,16 +143,17 @@ def login():
                     cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (username,))
                     publicKey = cur.fetchone()
                     # convert publicKey into a list
-                    p, g, h = publicKey[1], publicKey[0], publicKey[2]
+                    p, g, h = int(publicKey[0]), int(publicKey[1]), int(publicKey[2])
                     cur.execute("SELECT alpha FROM users_alpha WHERE username = ?", (username,))
                     alpha = cur.fetchone()
                     # convert alpha into a string
-                    alpha = alpha[0] # Take from a file labelled alpha val from the user system
-                    signature = schnorr.sign(username, alpha, p, g, h)
+                    alpha = int(alpha[0]) # Take from a file labelled alpha val from the user system
+                    message = ''.join(format(ord(i), '08b') for i in username)
+                    signatureC, signatureZ = schnorr.sign(message, alpha, p, g, h)
                     # Send the signature to the server along with the username and the public key
-                    client_socket.send(f"{username},{publicKey},{signature}".encode())
+                    client_socket.send(f"{message}\n{p}\n{g}\n{h}\n{signatureC}\n{signatureZ}".encode())
                     resp = client_socket.recv(1024).decode() # This will be the result of the verification
-                    if resp == True:
+                    if resp == "True":
                         session['username'] = username
                         return redirect('/dashboard')
                     else:
@@ -175,12 +176,12 @@ def register():
             response= register_user(username, password)
             if response == True:
                 publicKey, alpha = schnorr.keygen()
-                p, g, h = publicKey[1], publicKey[0], publicKey[2]
+                p, g, h = str(publicKey[1]), str(publicKey[0]), str(publicKey[2])
                 conn=get_db()
                 cur = conn.cursor()
                 cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
                 conn.commit()
-                cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, alpha))
+                cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, str(alpha)))
                 conn.commit()
                 session['username'] = username
                 return redirect('/login')
@@ -327,7 +328,7 @@ def add_new_site(n_clicks, new_site_name, new_password, new_name):
 )
 def exit_dashboard(n_clicks):
     if n_clicks > 0:
-        return redirect('/')
+        return '/'
 
 if __name__ == '__main__':
     app.run(debug=False)
