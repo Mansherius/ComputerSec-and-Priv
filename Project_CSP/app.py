@@ -7,11 +7,10 @@ import socket
 import rsa
 import hashlib
 import sqlite3
-from petlib.bn import Bn
 from Crypto.Util import number
-import os
+import schnorr
 
-DATABASE_NAME= "user_authentication.db" # database that stores user information to authenticate user
+DATABASE_NAME= "user_authentication.db" # Database that stores user information to authenticate user
 # Connect to the database
 conn = sqlite3.connect(DATABASE_NAME)
 cur = conn.cursor()
@@ -40,7 +39,7 @@ users_pk_columns = '''
     username TEXT PRIMARY KEY,
     p TEXT NOT NULL,
     g TEXT NOT NULL,
-    h1 TEXT NOT NULL
+    h TEXT NOT NULL
 '''
 
 # Call the function for creating the 'users' table
@@ -57,24 +56,6 @@ def get_db():
     if db is None:
         db = dbg._database = sqlite3.connect(DATABASE_NAME)
     return db
-def generate_prime(size=128):
-    prime = Bn.get_prime(size)
-    return prime
-
-# Function to generate a co-prime number to p, which is the group generator.
-def generate_g(p):
-    # Generate a random number smaller than p
-    q = p.random()
-    return q
-
-# Function to create h1 and alpha.
-def create_h(p, g):
-    # choose alpha uniformly from {1, . . . , p-1}
-    alpha = p.random()
-    print("alpha:",alpha)
-    h = g.mod_pow(alpha, p)
-    return h,alpha
-
 
 # Register new user
 def register_user(username, password):
@@ -103,42 +84,8 @@ def login_user(username, password):
         return True
     return False
 
-def schnorr_sign(m,p,g,h1,alpha,client_socket):
-    # convert m to binary 
-    m= bin(int.from_bytes(m.encode(), 'big'))
-    # print the data types of all the values
-    print("m:",type(m), "p:",type(p), "g:",type(g), "h1:",type(h1), "alpha:",type(alpha))
-    # convert all of them into big numbers
-    p,g,h1,alpha= Bn.from_decimal(p), Bn.from_decimal(g), Bn.from_decimal(h1), Bn.from_decimal(alpha)
-    # generate a random number x
-    beta= p.random()
-    # compute y= g^x mod p
-    y= g.mod_pow(beta,p)
-    # send y to the server
-    client_socket.send(str(y).encode())
-    # create the challenge c such that c= H(y||m)
-    conc= str(y)+str(m)
-    c= hashlib.sha256(conc.encode()).hexdigest()
-    print("c:",type(c))
-    print("c:",c)
-    c= Bn.from_hex(c)
-    # send c to the server
-    client_socket.send(str(c).encode())
-    print("c:",type(c))
-    # compute the response z= x+ alpha*c mod (p-1)
-    z= (beta+alpha*c).mod(p-1)
-    print("z:",type(z))
-    print("z:",z)
-    # send z to the server
-    client_socket.send(str(z).encode())
-    # receive the server's response
-    response= client_socket.recv(1024).decode()
-    if response=="success":
-        return True
-    else:
-        return False
-
 app = Flask(__name__)
+# Generate some random security key
 app.secret_key = 'your_secret_key_here'
 
 dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
@@ -193,14 +140,15 @@ def login():
                 r= client_socket.recv(1024).decode()
                 if r=="hello":
                     # get the user's pk and alpha from the database
-                    cur.execute("SELECT p, g, h1 FROM users_pk WHERE username = ?", (username,))
+                    cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (username,))
                     p,g,h1= cur.fetchone()
                     cur.execute("SELECT alpha FROM users_alpha WHERE username = ?", (username,))
                     alpha= cur.fetchone()
                     # convert alpha into a string
-                    alpha= alpha[0]
-                    res= schnorr_sign(username,p,g,h1,alpha,client_socket)
-                    if res==True:
+                    alpha = alpha[0] # Take from a file labelled alpha val from the user system
+                    signature = schnorr.sign(username, publicKey, alpha)
+                    # resp = client_socket.recv(1024).decode() # This will be the result of the verification
+                    if resp == True:
                         session['username'] = username
                         return redirect('/dashboard')
                     else:
@@ -210,6 +158,10 @@ def login():
     return render_template('login.html')
 
 # Registration route
+
+'''
+We have to use schnorr here when registering the user
+'''
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -218,15 +170,11 @@ def register():
         if username and password:
             response= register_user(username, password)
             if response == True:
-                p = generate_prime(128)
-                g = generate_g(p)
-                h1,alpha= create_h(p,g)
-                # convert the big numbers into a data type such that their big number values are preserved
-                p, g, h1, alpha = str(p), str(g), str(h1), str(alpha)
-                # store the alpha in the database using the username as the key
+                publicKey, alpha = schnorr.keygen()
+
                 conn=get_db()
                 cur = conn.cursor()
-                cur.execute('INSERT INTO users_pk (username, p, g, h1) VALUES (?, ?, ?, ?)', (username, p, g, h1))
+                cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, publicKey[1], publicKey[0], publicKey[2]))
                 conn.commit()
                 cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, alpha))
                 conn.commit()
@@ -248,12 +196,6 @@ def dashboard():
         return dash_app.index()
     else:
         return redirect('/')
-
-# Logout route
-@app.route('/logout')
-def logout():
-    session.pop('username', None)
-    return redirect('/')
 
 # Dash layout
 '''
@@ -287,8 +229,6 @@ dash_app.layout = html.Div([
     ], style={'text-align': 'center'}),
     dcc.Location(id='url', refresh=True)
 ])
-
-
 
 
 @dash_app.callback(
@@ -383,7 +323,7 @@ def add_new_site(n_clicks, new_site_name, new_password, new_name):
 )
 def exit_dashboard(n_clicks):
     if n_clicks > 0:
-        return '/'
+        return redirect('/')
 
 if __name__ == '__main__':
     app.run(debug=False)
