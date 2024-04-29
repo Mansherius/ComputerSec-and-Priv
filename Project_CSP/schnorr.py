@@ -29,17 +29,15 @@ def keygen():
     private_key = alpha
     return public_key, private_key
 
-def sign(message, secret_key, public_key):
-    beta = number.getRandomRange(1, public_key[1] - 1)
-    y = pow(public_key[0], beta, public_key[1])
-    c = H(y, message) % public_key[1]
-    z = (beta + secret_key * c) % (public_key[1] - 1)
+def sign(message, secret_key, p, g, h):
+    beta = number.getRandomRange(1, p - 1)
+    y = pow(g, beta, p)
+    c = H(y, message) % p
+    z = (beta + secret_key * c) % (p - 1)
     return (c, z)
 
-def verify(signature, public_key, message, p):
+def verify(signature, p, g, h, message):
     c, z = signature
-    g = public_key[0]
-    h = public_key[2]
     j = (pow(g, z, p) * pow(pow(h, c, p),-1,p)) % p
     print(j)
     m_hash = H(j, message) % p
@@ -49,6 +47,7 @@ def verify(signature, public_key, message, p):
 # Example usage
 public_key, private_key = keygen()
 print("Public Key:", public_key)
+p,g,h= public_key[1], public_key[0], public_key[2]
 print("Private Key:", private_key)
 
 message = "Hello, world!"
@@ -58,8 +57,8 @@ message = ''.join(format(ord(i), '08b') for i in message)
 
 print("Message:", message)
 
-signature = sign(message, private_key, public_key)
+signature = sign(message, private_key, p, g, h)
 print("Signature:", signature)
 
-verification = verify(signature, public_key, message, public_key[1])
+verification = verify(signature, p, g, h, message)
 print("Signature Verification Result:", verification)

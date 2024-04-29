@@ -2,6 +2,7 @@ import socket
 import sqlite3
 import rsa
 import hashlib
+import schnorr
 
 
 DATABASE_NAME = 'password_manager.db'
@@ -204,6 +205,22 @@ def server_stuff(server_socket):
                 client_socket.send("0".encode())  # Failed to add new site
                 client_socket.close()
                 server_stuff(server_socket)
+def schnorr_stuff(client_socket):
+    data= client_socket.recv(1024).decode()
+    print(f"Received data: {data}")
+    # split the data into the signature, public key and the message
+    signature, public_key, message = data.split(',')
+    p, g, h= public_key[1], public_key[0], public_key[2]
+    verification = schnorr.verify(signature, p, g, h, message)
+    if verification==True:
+        # send message approved to client
+        client_socket.send("True".encode())
+        return True
+    else:
+        # send message denied to client
+        client_socket.send("False".encode())
+        client_socket.close()
+        return False
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -218,22 +235,17 @@ def start_server():
         # send a message initiating the handshake
         client_socket.send("hello".encode())
         # receive the public key from the client
-        data = client_socket.recv(1024)
-        # decode the public key and message from the client
-        data= data.decode()
-        print(f"Received data: {data}")
-        public_key_data, m, sigma = data.split(',')
-        challenger= challenge(public_key_data, m, sigma)
-        if challenger:
-            # send message approved to client
-            client_socket.send("approved".encode())
+        verify=schnorr_stuff(client_socket)
+        if verify==True:
             server_stuff(server_socket)
-
         else:
-            # send message denied to client
-            client_socket.send("denied".encode())
             client_socket.close()
             start_server()
+    else:
+        # send message denied to client
+        client_socket.send("False".encode())
+        client_socket.close()
+        start_server()
 
 if __name__ == '__main__':
     start_server()

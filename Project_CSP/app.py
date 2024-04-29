@@ -141,13 +141,17 @@ def login():
                 if r=="hello":
                     # get the user's pk and alpha from the database
                     cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (username,))
-                    p,g,h1= cur.fetchone()
+                    publicKey = cur.fetchone()
+                    # convert publicKey into a list
+                    p, g, h = publicKey[1], publicKey[0], publicKey[2]
                     cur.execute("SELECT alpha FROM users_alpha WHERE username = ?", (username,))
-                    alpha= cur.fetchone()
+                    alpha = cur.fetchone()
                     # convert alpha into a string
                     alpha = alpha[0] # Take from a file labelled alpha val from the user system
-                    signature = schnorr.sign(username, publicKey, alpha)
-                    # resp = client_socket.recv(1024).decode() # This will be the result of the verification
+                    signature = schnorr.sign(username, alpha, p, g, h)
+                    # Send the signature to the server along with the username and the public key
+                    client_socket.send(f"{username},{publicKey},{signature}".encode())
+                    resp = client_socket.recv(1024).decode() # This will be the result of the verification
                     if resp == True:
                         session['username'] = username
                         return redirect('/dashboard')
@@ -171,10 +175,10 @@ def register():
             response= register_user(username, password)
             if response == True:
                 publicKey, alpha = schnorr.keygen()
-
+                p, g, h = publicKey[1], publicKey[0], publicKey[2]
                 conn=get_db()
                 cur = conn.cursor()
-                cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, publicKey[1], publicKey[0], publicKey[2]))
+                cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
                 conn.commit()
                 cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, alpha))
                 conn.commit()
