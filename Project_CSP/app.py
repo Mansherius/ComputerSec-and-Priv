@@ -213,13 +213,13 @@ dash_app.layout = html.Div(style={'background-color': '#333', 'color': '#fff', '
     
     html.Div(style={'display': 'flex', 'justify-content': 'center', 'width': '100%'}, children=[
         # Left half for adding passwords
-        html.Div(style={'width': '50%', 'padding': '20px'}, children=[
+        html.Div(style={'width': '50%', 'padding': '20px', 'display': 'flex', 'flex-direction': 'column', 'align-items': 'center'}, children=[
             html.H2('Add New Site', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px', 'text-align': 'center'}),
             html.Div([
-                dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name', style={'margin-bottom': '10px'}),
-                dcc.Input(id='new-name-input', type='text', placeholder='Enter your name', style={'margin-bottom': '10px'}),
-                dcc.Input(id='new-password-input', type='password', placeholder='Enter new password', style={'margin-bottom': '10px'})
-            ]),
+            dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name', style={'margin-bottom': '10px'}),
+            dcc.Input(id='new-name-input', type='text', placeholder='Enter your name', style={'margin-bottom': '10px'}),
+            dcc.Input(id='new-password-input', type='password', placeholder='Enter new password', style={'margin-bottom': '10px'})
+            ], style={'display': 'flex', 'flex-direction': 'column', 'align-items': 'center'}),
             html.Button('Add Site', id='add-site-btn', n_clicks=0, style={'display': 'block', 'margin': 'auto', 'margin-top': '10px', 'background-color': '#007bff', 'color': '#fff', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
         ]),
         
