@@ -208,33 +208,40 @@ Will have two functions that this page can do:
 function 1: retrieve password for a specific site
 function 2: add a new site, name and password
 '''
-dash_app.layout = html.Div([
-    html.H1('Password Manager Dashboard', style={'text-align': 'center'}),
-    html.Div(id='dashboard-content'),
-    html.Hr(),
-    # Retrieve Password Section
-    html.Div([
-        dcc.Input(id='site-name-input', type='text', placeholder='Enter site name', style={'margin-right': '10px'}),
-        html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0, style={'background-color': 'lightgrey'})
-    ], style={'text-align': 'center'}),
+dash_app.layout = html.Div(style={'background-color': '#333', 'color': '#fff', 'height': '100vh', 'display': 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center'}, children=[
+    html.H1('Password Manager Dashboard', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px'}),
+    
+    html.Div(style={'display': 'flex', 'justify-content': 'center', 'width': '100%'}, children=[
+        # Left half for adding passwords
+        html.Div(style={'width': '50%', 'padding': '20px'}, children=[
+            html.H2('Add New Site', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px', 'text-align': 'center'}),
+            html.Div([
+                dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name', style={'margin-bottom': '10px'}),
+                dcc.Input(id='new-name-input', type='text', placeholder='Enter your name', style={'margin-bottom': '10px'}),
+                dcc.Input(id='new-password-input', type='password', placeholder='Enter new password', style={'margin-bottom': '10px'})
+            ]),
+            html.Button('Add Site', id='add-site-btn', n_clicks=0, style={'display': 'block', 'margin': 'auto', 'margin-top': '10px', 'background-color': '#007bff', 'color': '#fff', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
+        ]),
+        
+        # Right half for retrieving passwords
+        html.Div(style={'width': '50%', 'padding': '20px'}, children=[
+            html.H2('Retrieve Password', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px', 'text-align': 'center'}),
+            html.Div([
+                dcc.Input(id='site-name-input', type='text', placeholder='Enter site name', style={'margin-bottom': '10px'}),
+                html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0, style={'display': 'block', 'margin': 'auto', 'margin-top': '10px', 'background-color': '#007bff', 'color': '#fff', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
+            ], style={'display': 'flex', 'flex-direction': 'column', 'align-items': 'center'})
+        ])
+    ]),
+    
+    html.Div(style={'text-align': 'center', 'margin-top': '20px'}, children=[
+        html.Button('Exit', id='exit-btn', n_clicks=0, style={'background-color': 'lightcoral', 'color': 'black', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
+    ]),
+    
     html.Div(id='password-display'),
-    html.Hr(),
-    # Add New Site Section
-    html.Div([
-        dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name', style={'margin-right': '10px'}),
-        dcc.Input(id='new-name-input', type='text', placeholder='Enter your name', style={'margin-right': '10px'}),
-        dcc.Input(id='new-password-input', type='password', placeholder='Enter new password', style={'margin-right': '10px'}),
-        html.Button('Add Site', id='add-site-btn', n_clicks=0, style={'background-color': 'lightblue'})
-    ], style={'text-align': 'center'}),
     html.Div(id='add-site-output'),
-    html.Hr(),
-    # Exit Button
-    html.Div([
-        html.Button('Exit', id='exit-btn', n_clicks=0, style={'background-color': 'lightcoral', 'color': 'black'})
-    ], style={'text-align': 'center'}),
+    
     dcc.Location(id='url', refresh=True)
 ])
-
 
 @dash_app.callback(
     Output('password-display', 'children'),

@@ -1,16 +1,56 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Page</title>
+    <title>Password Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #333; /* Dark background color */
+            color: #fff; /* Text color */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+            font-size: 32px; /* Increased font size */
+            font-weight: bold; /* Added font weight */
+            color: #ffa500; /* Orange color */
+            text-shadow: 2px 2px 4px #000000; /* Added text shadow */
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn + .btn {
+            margin-left: 10px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to the Password Manager</h1>
-    <form method="POST">
-        <button type="submit" name="existing_user">Login</button>
-        <button type="submit" name="new_user">Signup</button>
-    </form>
+    <div class="container">
+        <h1>Welcome to the Password Manager</h1>
+        <form method="POST">
+            <button type="submit" name="existing_user" class="btn">Login</button>
+            <button type="submit" name="new_user" class="btn">Signup</button>
+        </form>
+    </div>
 </body>
 </html>
