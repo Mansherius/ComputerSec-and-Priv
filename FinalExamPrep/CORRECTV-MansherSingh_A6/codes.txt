@@ -1,0 +1,14 @@
+Contains the openssl codes I used
+
+openssl genpkey -algorithm RSA -out private_key.pem -aes256 -pkeyopt rsa_keygen_bits:2048
+
+openssl rsa -pubout -in privkeyRSA2048.pem -out pubkeyRSA2048.pem
+
+openssl dsaparam -out dsaparam.pem 1024
+
+openssl gendsa -out privkeyDSA1024.pem dsaparam.pem
+
+openssl dsa -in privkeyDSA1024.pem -out pubkeyDSA1024.pem -pubout
+
+openssl req -new -x509 -key privkeyRSA2048.pem -out cert.pem -days 365 -subj "/C=IN/ST=Haryana/L=Sonipat/O=Ashoka University/OU=CSE/CN=mansher.singh_ug24@ashoka.edu.in" -sha256 -keyform PEM -outform PEM
+

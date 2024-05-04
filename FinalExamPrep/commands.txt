@@ -1,0 +1,102 @@
+# Contains all The OpenSSL commands to use for the quiz
+
+# Generating an RSA keypair -
+
+openssl genpkey -algorithm RSA -out private_key.pem -aes256
+# This command generates an RSA private key and encrypts it with AES 256-bit encryption.
+# You will be prompted to enter a passphrase to protect the private key.
+
+# Now we have to extract the public key from This
+openssl rsa -pubout -in private_key.pem -out public_key.pem
+
+# private_key.pem and public_key.pem names can be replaced with whatever you like 
+
+NOTE: THE FILES WILL BE STORED IN THE DIRECTORY THAT YOU RUN THE CODES IN
+
+==========================
+
+# Generating a DSA keypair for a user Y
+
+# gen DSA params 
+openssl dsaparam -out dsaparam.pem 1024 
+
+# Checking the params in text 
+openssl dsaparam -in dsaparam.pem -text
+
+# Now we generate the DSA Key pair
+openssl gendsa -out skey_Y.pem dsaparam.pem
+
+# Once again, we have to extract the public key from this secret key
+openssl dsa -in skey_Y.pem -out pkey_Y.pem -pubout
+
+# Check the keys in text
+openssl dsa -in skey_Y.pem -text
+
+openssl dsa -pubin -in pkey_Y.pem -text
+
+===========================
+# Signing a file sha1(msg.txt) using the secret key of a
+openssl dgst -sha1 -sign skey_Y.pem -out sign_msg_A.bin msg.txt
+
+===========================
+
+# Verifying the message we just signed
+
+openssl dgst -sha1 -verify pkey_Y.pem -signature -sign_msg_A.bin recv_msg.txt 
+# recv_msg.txt must exist, for testing, simply use msg.txt
+
+============================
+
+# CERTIFICATES
+
+# Generating a self signed certificate 
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365
+
+# generating a CSR for a CA to create a signed certificate
+openssl req -new -newkey rsa:2048 -keyout key.pem -out csr.pem
+
+# Verifying a certificate against a CA 
+openssl verify -CAfile ca.pem cert.pem
+
+# Checking revocation status of a certificate
+openssl crl2pkcs7 -nocrl -certfile cert.pem | openssl ocsp -issuer ca.pem -cert cert.pem -text
+
+
+=========================
+
+# ANSWER 1 . C 
+To generate a Certificate Signing Request (CSR) for a user with an email ID (idP) and public key (pkP), and then certify it using user Y's keys, you can follow these steps:
+
+1. **Generate a CSR for User P:**
+
+   Use OpenSSL to generate a CSR for user P using their email ID and public key:
+   ```bash
+   openssl req -new -key pkP.pem -subj "/emailAddress=idP" -out csr_P.pem
+   ```
+   Replace `pkP.pem` with the path to user P's public key and `idP` with the email ID.
+
+2. **Certify the CSR Using User Y's Keys:**
+
+   User Y, acting as a Certificate Authority (CA), will sign the CSR to generate a signed certificate for user P.
+
+   - **Generate User Y's Keys (if not already done):**
+     If user Y doesn't have keys already, generate them using OpenSSL:
+     ```bash
+     openssl genrsa -out private_key_Y.pem 2048
+     openssl rsa -pubout -in private_key_Y.pem -out public_key_Y.pem
+     ```
+
+   - **Sign the CSR with User Y's Private Key:**
+     Use OpenSSL to sign the CSR with user Y's private key and generate a signed certificate:
+     ```bash
+     openssl x509 -req -in csr_P.pem -CA public_key_Y.pem -CAkey private_key_Y.pem -CAcreateserial -out cert_P.pem -days 365
+     ```
+     Replace `public_key_Y.pem` and `private_key_Y.pem` with the paths to user Y's public and private keys respectively.
+
+     The `-CAcreateserial` option generates a serial number file if it does not exist.
+
+3. **Distribute the Signed Certificate:**
+
+   User Y, as the CA, should distribute the signed certificate (`cert_P.pem`) to user P.
+
+That's it! You've generated a CSR for user P, certified it using user Y's keys, and distributed the signed certificate. This process establishes trust in user P's identity and allows them to use the certificate for various purposes such as authentication or secure communication.
