@@ -137,7 +137,7 @@ def login():
                 ###Schnorr signature stuff here###
                 # Send server a hello message, initiating the Schnorr protocol
                 client_socket.send("hello".encode())
-                r= client_socket.recv(1024).decode()
+                r= client_socket.recv(2048).decode()
                 if r=="hello":
                     # get the user's pk and alpha from the database
                     cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (username,))
@@ -152,7 +152,7 @@ def login():
                     signatureC, signatureZ = schnorr.sign(message, alpha, p, g, h)
                     # Send the signature to the server along with the username and the public key
                     client_socket.send(f"{message}\n{signatureC}\n{signatureZ}".encode())
-                    resp = client_socket.recv(1024).decode() # This will be the result of the verification
+                    resp = client_socket.recv(2048).decode() # This will be the result of the verification
                     if resp == "True":
                         session['username'] = username
                         return redirect('/dashboard')
@@ -283,7 +283,7 @@ def retrieve_password(n_clicks, site_name):
     credentials = f"{action},{user}\n{site_name}"
     encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
     client_socket.send(encrypted_credentials)
-    response = client_socket.recv(1024)
+    response = client_socket.recv(2048)
     response = rsa.decrypt(response, private_key_client).decode()
     client_socket.close()  # Close the socket after receiving the response
 
@@ -324,7 +324,7 @@ def add_new_site(n_clicks, new_site_name, new_password, new_name):
     credentials = f"{action},{user}\n{new_site_name}\n{new_password}\n{new_name}"
     encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
     client_socket.send(encrypted_credentials)
-    response = client_socket.recv(1024).decode()
+    response = client_socket.recv(2048).decode()
     client_socket.close()  # Close the socket after receiving the response
 
     if response == "1":
