@@ -112,7 +112,6 @@ def add_new_site(username, name, site_name, password,client_socket):
 def retrieve_password(username, site_name):
     cur.execute(f'''SELECT user, password FROM "{username}" WHERE service = "{site_name}"''')
     data= cur.fetchone()
-    print(data)
     if data is not None:
         # if the service exists, send the details to the client
         cur.execute(f'''SELECT user, password FROM "{username}" WHERE service = "{site_name}"''')
@@ -131,7 +130,6 @@ def challenge(pk,m,sigma):
     m_prime= str(j)+m
     # hash the concatenated message
     h_prime= hashlib.sha256(m_prime.encode()).hexdigest()
-    print(f"Hash of the concatenated message: {h_prime}")
     # check if the hash is equal to the challenge
     if h_prime.decode()==c:
         return True
@@ -157,10 +155,6 @@ def server_stuff(server_socket):
         if action == 'register':
             username, p,g,h= args.split('\n')
             print("REGISTERING NEW USER...")
-            print(f"Username: {username}")
-            print(f"P: {p}")
-            print(f"G: {g}")
-            print(f"H: {h}")
             # insert the p,g,h into a table users_pk
             cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
             conn.commit()
@@ -228,30 +222,22 @@ def schnorr_stuff(client_socket):
     print(f"Received data: {data}")
     # split the data into the signature, public key and the message(username)
     message, signatureC, signatureZ = data.split('\n')
-    print("User is:", message)
     # convert user from binary to string
     message_i = ''.join(chr(int(message[i:i+8], 2)) for i in range(0, len(message), 8))
-    print("User is:", message)
-    print("C is", signatureC)
-    print("Z is", signatureZ)
     # get the public key of the client from the table users_pk
     cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (message_i,))
     publicKey = cur.fetchone()
     # convert publicKey into a list
     p, g, h = int(publicKey[0]), int(publicKey[1]), int(publicKey[2])
-    print("P is", p)
-    print("G is", g)
-    print("H is", h)
     verification = schnorr.verify(int(signatureC), int(signatureZ), int(p), int(g), int(h), message)
     if verification == True:
         # send message approved to clienta
         client_socket.send("True".encode())
-        print("YAYY YOU ARE NOT A TOTAL IDIOT")
         return True
     else:
         # send message denied to client
         client_socket.send("False".encode())
-        print("FALSEE BITCHHH")
+        print("DENIED")
         client_socket.close()
         return False
 

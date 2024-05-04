@@ -38,9 +38,7 @@ def sign(message, secret_key, p, g, h):
 
 def verify(c, z, p, g, h, message):
     j = (pow(g, z, p) * pow(pow(h, c, p),-1,p)) % p
-    print(j)
     m_hash = H(j, message) % p
-    print(m_hash, c)
     return m_hash == c
 
 
