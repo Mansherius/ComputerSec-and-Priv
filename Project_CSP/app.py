@@ -148,10 +148,10 @@ def login():
                     alpha = cur.fetchone()
                     # convert alpha into a string
                     alpha = int(alpha[0]) # Take from a file labelled alpha val from the user system
-                    message = ''.join(format(ord(i), '08b') for i in username)
+                    message = ''.join(format(ord(i), '08b') for i in username) # Convert the username to binary
                     signatureC, signatureZ = schnorr.sign(message, alpha, p, g, h)
                     # Send the signature to the server along with the username and the public key
-                    client_socket.send(f"{message}\n{p}\n{g}\n{h}\n{signatureC}\n{signatureZ}".encode())
+                    client_socket.send(f"{message}\n{signatureC}\n{signatureZ}".encode())
                     resp = client_socket.recv(1024).decode() # This will be the result of the verification
                     if resp == "True":
                         session['username'] = username
@@ -183,6 +183,18 @@ def register():
                 conn.commit()
                 cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, str(alpha)))
                 conn.commit()
+                # send p,g,h to the server
+                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client_socket.connect((server_address, port))
+                client_socket.send("register".encode())
+                client_socket.close()
+                action = 'register'
+                credentials = f"{action},{username}\n{p}\n{g}\n{h}"
+                encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
+                client_socket_2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client_socket_2.connect((server_address, port))
+                client_socket_2.send(encrypted_credentials)
+                client_socket_2.close()
                 session['username'] = username
                 return redirect('/login')
             else:

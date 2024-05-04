@@ -32,7 +32,28 @@ else:
 with open("server_public_key.pem", "wb") as key_file:
     key_file.write(public_key_server.save_pkcs1())
 
+def create_table_if_not_exists(cur, table_name, columns):
+    cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+    if cur.fetchone() is None:
+        # Create a new table
+        cur.execute(f'''
+            CREATE TABLE {table_name} (
+                {columns}
+            );
+        ''')
+        print(f"New table '{table_name}' created")
+    else:
+        print(f"Table '{table_name}' exists")
 
+# Create a table to store the public keys of the users
+# Define the columns for the 'users_pk' table
+users_pk_columns = '''
+    username TEXT PRIMARY KEY,
+    p TEXT NOT NULL,
+    g TEXT NOT NULL,
+    h TEXT NOT NULL
+'''
+create_table_if_not_exists(cur, 'users_pk', users_pk_columns)
 
 # Register new user
 def register_user(username, password):
@@ -126,7 +147,7 @@ def server_stuff(server_socket):
         # format the key data as a public key
         public_key_client = rsa.PublicKey.load_pkcs1(public_key_data)
         # Receive data from the client
-        data = client_socket.recv(1024)
+        data = client_socket.recv(2048)
         print(f"Received encrypted data: {data}")
         data= rsa.decrypt(data, private_key_server)
         data= data.decode()
@@ -134,21 +155,18 @@ def server_stuff(server_socket):
         action, args = data.split(',', 1)  # Split into action and arguments
 
         if action == 'register':
-            username, password = args.split('\n')
-            username, password = str(username), str(password)
-            print("REGISTERING USER...")
+            username, p,g,h= args.split('\n')
+            print("REGISTERING NEW USER...")
             print(f"Username: {username}")
-            print(f"Password: {password}")
-            # Register the user and send response to client
-            if register_user(username, password):
-                client_socket.send("1".encode())  # User registered successfully
-                client_socket.close()
-                server_stuff(server_socket)
-
-            else:
-                client_socket.send("0".encode())  # User registration failed (username already exists)
-                client_socket.close()
-                server_stuff(server_socket)
+            print(f"P: {p}")
+            print(f"G: {g}")
+            print(f"H: {h}")
+            # insert the p,g,h into a table users_pk
+            cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
+            conn.commit()
+            print("New user registered")
+            client_socket.close()
+            return None
         elif action == 'login':
             username, password = args.split('\n')
             print("LOGGING IN USER...")
@@ -208,13 +226,22 @@ def server_stuff(server_socket):
 def schnorr_stuff(client_socket):
     data= client_socket.recv(1024).decode()
     print(f"Received data: {data}")
-    # split the data into the signature, public key and the message
-    message, p, g, h, signatureC, signatureZ = data.split('\n')
+    # split the data into the signature, public key and the message(username)
+    message, signatureC, signatureZ = data.split('\n')
+    print("User is:", message)
+    # convert user from binary to string
+    message_i = ''.join(chr(int(message[i:i+8], 2)) for i in range(0, len(message), 8))
+    print("User is:", message)
+    print("C is", signatureC)
+    print("Z is", signatureZ)
+    # get the public key of the client from the table users_pk
+    cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (message_i,))
+    publicKey = cur.fetchone()
+    # convert publicKey into a list
+    p, g, h = int(publicKey[0]), int(publicKey[1]), int(publicKey[2])
     print("P is", p)
     print("G is", g)
     print("H is", h)
-    print("C is", signatureC)
-    print("Z is", signatureZ)
     verification = schnorr.verify(int(signatureC), int(signatureZ), int(p), int(g), int(h), message)
     if verification == True:
         # send message approved to clienta
@@ -246,11 +273,20 @@ def start_server():
             server_stuff(server_socket)
         else:
             client_socket.close()
+            server_socket.close()
             start_server()
+    elif msg.decode()=="register":
+        print("Registering new user...")
+        client_socket.close()
+        server_stuff(server_socket)
+        # close the server socket and stop using address
+        server_socket.close()
+        start_server()
     else:
         # send message denied to client
         client_socket.send("False".encode())
         client_socket.close()
+        server_socket.close()
         start_server()
 
 if __name__ == '__main__':
