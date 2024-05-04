@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Registration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #333; /* Dark background color */
+            color: #fff; /* Text color */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+            font-size: 32px; /* Increased font size */
+            font-weight: bold; /* Added font weight */
+            color: #ffa500; /* Orange color */
+            text-shadow: 2px 2px 4px #000000; /* Added text shadow */
+        }
+        form {
+            display: inline-block;
+            text-align: center;
+        }
+        input[type="text"],
+        input[type="password"],
+        button {
+            padding: 10px;
+            margin-bottom: 5px; /* Reduced margin */
+            border: none;
+            border-radius: 4px;
+            display: block;
+            width: 250px; /* Increased width */
+            margin: 5px auto; /* Adjusted margin */
+        }
+        button[type="submit"] {
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: 120px; /* Adjusted width */
+        }
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            width: 250px; /* Adjusted width */
+            margin: 10px auto; /* Adjusted margin */
+        }
+        button[type="button"] {
+            background-color: #dc3545; /* Red color */
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            text-decoration: none;
+            padding: 10px;
+            border-radius: 4px;
+            border: none;
+            display: block;
+            width: 120px; /* Adjusted width */
+            margin: 5px auto; /* Adjusted margin */
+        }
+        button[type="button"]:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User Registration</h1>
+        <form method="POST">
+            <input type="text" id="username" name="username" placeholder="Enter your username" required><br>
+            <input type="password" id="password" name="password" placeholder="Enter your password" required><br>
+            <div class="button-group">
+                <button type="submit" name="register">Register</button>
+                <a href="/" style="text-decoration: none;"><button type="button">Go back</button></a> <!-- Added href attribute -->
+            </div>
+        </form>
+        {% if error %}
+        <p style="color: red;">{{ error }}</p>
+        {% endif %}
+    </div>
+</body>
+</html>
