@@ -143,16 +143,17 @@ def login():
                     cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (username,))
                     publicKey = cur.fetchone()
                     # convert publicKey into a list
-                    p, g, h = publicKey[1], publicKey[0], publicKey[2]
+                    p, g, h = int(publicKey[0]), int(publicKey[1]), int(publicKey[2])
                     cur.execute("SELECT alpha FROM users_alpha WHERE username = ?", (username,))
                     alpha = cur.fetchone()
                     # convert alpha into a string
-                    alpha = alpha[0] # Take from a file labelled alpha val from the user system
-                    signature = schnorr.sign(username, alpha, p, g, h)
+                    alpha = int(alpha[0]) # Take from a file labelled alpha val from the user system
+                    message = ''.join(format(ord(i), '08b') for i in username)
+                    signatureC, signatureZ = schnorr.sign(message, alpha, p, g, h)
                     # Send the signature to the server along with the username and the public key
-                    client_socket.send(f"{username},{publicKey},{signature}".encode())
+                    client_socket.send(f"{message}\n{p}\n{g}\n{h}\n{signatureC}\n{signatureZ}".encode())
                     resp = client_socket.recv(1024).decode() # This will be the result of the verification
-                    if resp == True:
+                    if resp == "True":
                         session['username'] = username
                         return redirect('/dashboard')
                     else:
@@ -175,12 +176,12 @@ def register():
             response= register_user(username, password)
             if response == True:
                 publicKey, alpha = schnorr.keygen()
-                p, g, h = publicKey[1], publicKey[0], publicKey[2]
+                p, g, h = str(publicKey[1]), str(publicKey[0]), str(publicKey[2])
                 conn=get_db()
                 cur = conn.cursor()
                 cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
                 conn.commit()
-                cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, alpha))
+                cur.execute('INSERT INTO users_alpha (username, alpha) VALUES (?, ?)', (username, str(alpha)))
                 conn.commit()
                 session['username'] = username
                 return redirect('/login')
@@ -207,33 +208,40 @@ Will have two functions that this page can do:
 function 1: retrieve password for a specific site
 function 2: add a new site, name and password
 '''
-dash_app.layout = html.Div([
-    html.H1('Password Manager Dashboard', style={'text-align': 'center'}),
-    html.Div(id='dashboard-content'),
-    html.Hr(),
-    # Retrieve Password Section
-    html.Div([
-        dcc.Input(id='site-name-input', type='text', placeholder='Enter site name', style={'margin-right': '10px'}),
-        html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0, style={'background-color': 'lightgrey'})
-    ], style={'text-align': 'center'}),
+dash_app.layout = html.Div(style={'background-color': '#333', 'color': '#fff', 'height': '100vh', 'display': 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center'}, children=[
+    html.H1('Password Manager Dashboard', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px'}),
+    
+    html.Div(style={'display': 'flex', 'justify-content': 'center', 'width': '100%'}, children=[
+        # Left half for adding passwords
+        html.Div(style={'width': '50%', 'padding': '20px', 'display': 'flex', 'flex-direction': 'column', 'align-items': 'center'}, children=[
+            html.H2('Add New Site', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px', 'text-align': 'center'}),
+            html.Div([
+            dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name', style={'margin-bottom': '10px'}),
+            dcc.Input(id='new-name-input', type='text', placeholder='Enter your name', style={'margin-bottom': '10px'}),
+            dcc.Input(id='new-password-input', type='password', placeholder='Enter new password', style={'margin-bottom': '10px'})
+            ], style={'display': 'flex', 'flex-direction': 'column', 'align-items': 'center'}),
+            html.Button('Add Site', id='add-site-btn', n_clicks=0, style={'display': 'block', 'margin': 'auto', 'margin-top': '10px', 'background-color': '#007bff', 'color': '#fff', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
+        ]),
+        
+        # Right half for retrieving passwords
+        html.Div(style={'width': '50%', 'padding': '20px'}, children=[
+            html.H2('Retrieve Password', style={'font-size': '32px', 'font-weight': 'bold', 'color': '#ffa500', 'text-shadow': '2px 2px 4px #000000', 'margin-bottom': '20px', 'text-align': 'center'}),
+            html.Div([
+                dcc.Input(id='site-name-input', type='text', placeholder='Enter site name', style={'margin-bottom': '10px'}),
+                html.Button('Retrieve Password', id='retrieve-password-btn', n_clicks=0, style={'display': 'block', 'margin': 'auto', 'margin-top': '10px', 'background-color': '#007bff', 'color': '#fff', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
+            ], style={'display': 'flex', 'flex-direction': 'column', 'align-items': 'center'})
+        ])
+    ]),
+    
+    html.Div(style={'text-align': 'center', 'margin-top': '20px'}, children=[
+        html.Button('Exit', id='exit-btn', n_clicks=0, style={'background-color': 'lightcoral', 'color': 'black', 'padding': '10px 20px', 'font-size': '16px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'transition': 'background-color 0.3s ease'})
+    ]),
+    
     html.Div(id='password-display'),
-    html.Hr(),
-    # Add New Site Section
-    html.Div([
-        dcc.Input(id='new-site-name-input', type='text', placeholder='Enter new site name', style={'margin-right': '10px'}),
-        dcc.Input(id='new-name-input', type='text', placeholder='Enter your name', style={'margin-right': '10px'}),
-        dcc.Input(id='new-password-input', type='password', placeholder='Enter new password', style={'margin-right': '10px'}),
-        html.Button('Add Site', id='add-site-btn', n_clicks=0, style={'background-color': 'lightblue'})
-    ], style={'text-align': 'center'}),
     html.Div(id='add-site-output'),
-    html.Hr(),
-    # Exit Button
-    html.Div([
-        html.Button('Exit', id='exit-btn', n_clicks=0, style={'background-color': 'lightcoral', 'color': 'black'})
-    ], style={'text-align': 'center'}),
+    
     dcc.Location(id='url', refresh=True)
 ])
-
 
 @dash_app.callback(
     Output('password-display', 'children'),
@@ -327,7 +335,7 @@ def add_new_site(n_clicks, new_site_name, new_password, new_name):
 )
 def exit_dashboard(n_clicks):
     if n_clicks > 0:
-        return redirect('/')
+        return '/'
 
 if __name__ == '__main__':
     app.run(debug=False)
