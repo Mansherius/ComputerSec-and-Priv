@@ -8,11 +8,54 @@ from OpenSSL import crypto
 
 
 DATABASE_NAME = 'password_manager.db'
+server_name = "Password_Manager" # CN (Common name)
+id_s = "password@manager.com" # id of the server
+org_y = "CS362/Spring2024" # organization name(O)
+
+# just in case we need to change these
+countryName = "NT" # C
+localityName = "Sonipat" # L
+stateOrProvinceName = "Haryana" # ST
+organizationUnitName = "Ashoka University" # OU
+
+def create_self_cert(auth_key):
+    self_cert = certificate.create_certificate(auth_key, auth_key, id_s, server_name, "self_c.crt",
+    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName)
+    return self_cert
+
+# check if private_key_server file already exists
+try:
+    with open("dsa_private_key.pem", "rb") as key_file:
+        auth_private_key = key_file.read()
+except FileNotFoundError:
+    auth_key = certificate.create_dsa_key(server_name)
+    with open("dsa_private_key.pem", "wb") as key_file:
+        key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, auth_key))
+    with open("dsa_public_key.pem", "wb") as key_file:
+        key_file.write(crypto.dump_publickey(crypto.FILETYPE_PEM, auth_key))
+
+with open("dsa_private_key.pem", "rb") as key_file:
+    auth_private_key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
+with open("dsa_public_key.pem", "rb") as key_file:
+    auth_public_key = crypto.load_publickey(crypto.FILETYPE_PEM, key_file.read())
+
+
+# check if self_cert file already exists
+try:
+    with open("self_cert.pem", "rb") as cert_file:
+        self_cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_file.read())
+except FileNotFoundError:
+    self_cert = create_self_cert(auth_private_key)
+    with open("self_cert.pem", "wb") as cert_file:
+        cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, self_cert))
+
+
+
 
 # Create a new SQLite database or connect to an existing one
 conn = sqlite3.connect(DATABASE_NAME)
 cur = conn.cursor()
-
+(public_key_server, private_key_server)= rsa.newkeys(512)
 # Check if the table 'users' already exists in the database
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
 if cur.fetchone() is None:
@@ -27,40 +70,21 @@ if cur.fetchone() is None:
 else:
     print(f"Table 'users' exists in {DATABASE_NAME}")
 
-(public_key_server, private_key_server) = rsa.newkeys(2048)
 
-
-# Save the public key to a file
-with open("server_public_key.pem", "wb") as key_file:
-    key_file.write(public_key_server.save_pkcs1())
-
-def create_cert():
-    server_name = "Password_Manager" # CN (Common name)
-    id_s = "password@manager.com" # id of the server
-    org_y = "CS362/Spring2024" # organization name(O)
-    
-    # just in case we need to change these
-    countryName = "NT" # C
-    localityName = "Sonipat" # L
-    stateOrProvinceName = "Haryana" # ST
-    organizationUnitName = "Ashoka University" # OU
-    rsa_key = certificate.create_rsa_key(server_name) 
-    dsa_key= certificate.create_dsa_key(server_name)
-    self_cert = certificate.create_certificate(dsa_key, dsa_key, id_s, server_name, "self_c.crt",
-    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName)
-    dsa_cert = certificate.create_certificate(rsa_key, dsa_key, id_s, server_name, "cert_S.crt", 
+def create_rsa_cert():
+    rsa_key = certificate.create_rsa_key(server_name)
+    public_key_server= crypto.dump_publickey(crypto.FILETYPE_PEM, rsa_key)
+    private_key_server= crypto.dump_privatekey(crypto.FILETYPE_PEM, rsa_key)
+    new_cert = certificate.create_certificate(rsa_key, auth_private_key, id_s, server_name, "cert_S.crt", 
     countryName, localityName, stateOrProvinceName, org_y, organizationUnitName, self_cert)
-    return dsa_cert, self_cert, rsa_key, dsa_key
+    return new_cert, public_key_server, private_key_server
 
-def send_cert(dsa_cert, self_cert, client):
+def send_cert(dsa_cert, client):
     cert= (crypto.dump_certificate(crypto.FILETYPE_PEM, dsa_cert).decode())
-    self= (crypto.dump_certificate(crypto.FILETYPE_PEM, self_cert).decode())
     print(cert)
     client.send(cert.encode())
     print("------CERTIFICATE SENT------")
-    print(self)
-    client.send(self.encode())
-    print("------SELF CERTIFICATE SENT------")
+
 def create_table_if_not_exists(cur, table_name, columns):
     cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
     if cur.fetchone() is None:
@@ -272,7 +296,9 @@ def schnorr_stuff(client_socket):
 
 def start_server():
     # create certificates for the server
-    dsa_cert, self_cert, rsa_key, dsa_key= create_cert()
+    dsa_cert, public_key_server, private_key_server= create_rsa_cert()
+    #public_key_server.to_cryptography_key().public_bytes(crypto.FILETYPE_PEM, None)
+    #private_key_server.to_cryptography_key().private_bytes(crypto.FILETYPE_PEM, None)
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('127.0.0.1', 65432))
     server_socket.listen(5)
@@ -302,7 +328,7 @@ def start_server():
     elif msg.decode()=="verify":
         print("Verification starting...")
         client_socket.send("proceed".encode())
-        send_cert(dsa_cert, self_cert, client_socket)
+        send_cert(dsa_cert, client_socket)
         response= client_socket.recv(2048).decode()
         client_socket.close()
         server_socket.close()

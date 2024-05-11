@@ -58,8 +58,11 @@ dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
 server_address = '127.0.0.1'
 port = 65432
 
-
-def verify_server():
+with open("self_cert.pem", "rb") as cert_file:
+    self_cert = cert_file.read()
+self_cert = crypto.load_certificate(crypto.FILETYPE_PEM, self_cert)
+print("self_cert:",self_cert)
+def verify_server(self_cert):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((server_address, port))
     # Sending hello to the server.
@@ -75,14 +78,11 @@ def verify_server():
         print("cert:",cert)
         # convert the certificate to a certificate object
         cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert)
-        self = client.recv(2048).decode()
-        print("------RECEIVED SELF CERTIFICATE FROM SERVER------")
-        print("self:",self)
         # convert the certificate to a certificate object
-        self = crypto.load_certificate(crypto.FILETYPE_PEM, self)
-        p_key_S= certificate.extract_public_key(self)
+        #self_cert = crypto.load_certificate(crypto.FILETYPE_PEM, self_cert)
+        p_key_S= certificate.extract_public_key(cert)
         # Verify the certificate
-        cert_chain = [cert, self]
+        cert_chain = [cert, self_cert]
         result = certificate.CertVerify(cert_chain)
         if result:
             print("Certificate is valid.")
@@ -98,11 +98,12 @@ def verify_server():
             return False
 
 
-public_key_server = verify_server()
+public_key_server = verify_server(self_cert)
 if public_key_server == False:
     print("Server verification failed!")
     exit()
 
+public_key_server.to_cryptography_key()
 def get_db():
     db = getattr(dbg, '_database', None)
     if db is None:
