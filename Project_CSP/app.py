@@ -9,6 +9,8 @@ import hashlib
 import sqlite3
 from Crypto.Util import number
 import schnorr
+import cert_functions as certificate
+from OpenSSL import crypto
 
 DATABASE_NAME= "user_authentication.db" # Database that stores user information to authenticate user
 # Connect to the database
@@ -51,6 +53,56 @@ create_table_if_not_exists(cur, 'users_pk', users_pk_columns)
 # Create a database to store the alpha values for each user
 create_table_if_not_exists(cur, 'users_alpha', 'username TEXT PRIMARY KEY, alpha TEXT NOT NULL')
 
+app = Flask(__name__)
+dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
+server_address = '127.0.0.1'
+port = 65432
+
+
+def verify_server():
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect((server_address, port))
+    # Sending hello to the server.
+    client.send("verify".encode())
+    print("------ ASKED SERVER FOR VERIFICATION------")
+    # Receiving the message from the server.
+    pro = client.recv(1024).decode()
+    print("------RECEIVED RESPONSE FROM SERVER------")
+    if pro == "proceed":
+        # Receiving the server's response.
+        cert = client.recv(2048).decode()
+        print("------RECEIVED CERTIFICATE FROM SERVER------")
+        print("cert:",cert)
+        # convert the certificate to a certificate object
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert)
+        self = client.recv(2048).decode()
+        print("------RECEIVED SELF CERTIFICATE FROM SERVER------")
+        print("self:",self)
+        # convert the certificate to a certificate object
+        self = crypto.load_certificate(crypto.FILETYPE_PEM, self)
+        p_key_S= certificate.extract_public_key(self)
+        # Verify the certificate
+        cert_chain = [cert, self]
+        result = certificate.CertVerify(cert_chain)
+        if result:
+            print("Certificate is valid.")
+            client.send("valid".encode())
+            # close the connection
+            client.close()
+            return p_key_S
+        else:
+            print("Certificate is invalid.")
+            client.send("close".encode())
+            # close the connection
+            client.close()
+            return False
+
+
+public_key_server = verify_server()
+if public_key_server == False:
+    print("Server verification failed!")
+    exit()
+
 def get_db():
     db = getattr(dbg, '_database', None)
     if db is None:
@@ -84,22 +136,15 @@ def login_user(username, password):
         return True
     return False
 
-app = Flask(__name__)
 # Generate some random security key
 app.secret_key = 'your_secret_key_here'
 
-dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
-server_address = '127.0.0.1'
-port = 65432
+
 
 (public_key_client, private_key_client) = rsa.newkeys(2048)
 
 with open("client_public_key.pem", "wb") as key_file:
     key_file.write(public_key_client.save_pkcs1())
-with open("server_public_key.pem", "rb") as key_file:
-    public_key_data = key_file.read()
-# format the key data as a public key
-public_key_server = rsa.PublicKey.load_pkcs1(public_key_data)
 
 
 @app.teardown_appcontext

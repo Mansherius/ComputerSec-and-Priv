@@ -3,6 +3,8 @@ import sqlite3
 import rsa
 import hashlib
 import schnorr
+import cert_functions as certificate
+from OpenSSL import crypto
 
 
 DATABASE_NAME = 'password_manager.db'
@@ -32,6 +34,33 @@ else:
 with open("server_public_key.pem", "wb") as key_file:
     key_file.write(public_key_server.save_pkcs1())
 
+def create_cert():
+    server_name = "Password_Manager" # CN (Common name)
+    id_s = "password@manager.com" # id of the server
+    org_y = "CS362/Spring2024" # organization name(O)
+    
+    # just in case we need to change these
+    countryName = "NT" # C
+    localityName = "Sonipat" # L
+    stateOrProvinceName = "Haryana" # ST
+    organizationUnitName = "Ashoka University" # OU
+    rsa_key = certificate.create_rsa_key(server_name) 
+    dsa_key= certificate.create_dsa_key(server_name)
+    self_cert = certificate.create_certificate(dsa_key, dsa_key, id_s, server_name, "self_c.crt",
+    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName)
+    dsa_cert = certificate.create_certificate(rsa_key, dsa_key, id_s, server_name, "cert_S.crt", 
+    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName, self_cert)
+    return dsa_cert, self_cert, rsa_key, dsa_key
+
+def send_cert(dsa_cert, self_cert, client):
+    cert= (crypto.dump_certificate(crypto.FILETYPE_PEM, dsa_cert).decode())
+    self= (crypto.dump_certificate(crypto.FILETYPE_PEM, self_cert).decode())
+    print(cert)
+    client.send(cert.encode())
+    print("------CERTIFICATE SENT------")
+    print(self)
+    client.send(self.encode())
+    print("------SELF CERTIFICATE SENT------")
 def create_table_if_not_exists(cur, table_name, columns):
     cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
     if cur.fetchone() is None:
@@ -242,6 +271,8 @@ def schnorr_stuff(client_socket):
         return False
 
 def start_server():
+    # create certificates for the server
+    dsa_cert, self_cert, rsa_key, dsa_key= create_cert()
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('127.0.0.1', 65432))
     server_socket.listen(5)
@@ -268,6 +299,18 @@ def start_server():
         # close the server socket and stop using address
         server_socket.close()
         start_server()
+    elif msg.decode()=="verify":
+        print("Verification starting...")
+        client_socket.send("proceed".encode())
+        send_cert(dsa_cert, self_cert, client_socket)
+        response= client_socket.recv(2048).decode()
+        client_socket.close()
+        server_socket.close()
+        if response=="valid":
+            print("Verified")
+            start_server()
+        else:
+            print("Not verified")
     else:
         # send message denied to client
         client_socket.send("False".encode())
