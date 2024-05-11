@@ -61,7 +61,8 @@ port = 65432
 with open("self_cert.pem", "rb") as cert_file:
     self_cert = cert_file.read()
 self_cert = crypto.load_certificate(crypto.FILETYPE_PEM, self_cert)
-print("self_cert:",self_cert)
+# print("self_cert:",self_cert)
+
 def verify_server(self_cert):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((server_address, port))
@@ -98,12 +99,13 @@ def verify_server(self_cert):
             return False
 
 
-public_key_server = verify_server(self_cert)
+'''public_key_server = verify_server(self_cert)
 if public_key_server == False:
     print("Server verification failed!")
     exit()
 
-public_key_server.to_cryptography_key()
+public_key_server.to_cryptography_key()'''
+
 def get_db():
     db = getattr(dbg, '_database', None)
     if db is None:
@@ -139,10 +141,13 @@ def login_user(username, password):
 
 # Generate some random security key
 app.secret_key = 'your_secret_key_here'
-
-
-
 (public_key_client, private_key_client) = rsa.newkeys(2048)
+with open("client_public_key.pem", "wb") as key_file:
+    key_file.write(public_key_client.save_pkcs1())
+with open("server_public_key.pem", "rb") as key_file:
+    public_key_data = key_file.read()
+# format the key data as a public key
+public_key_server = rsa.PublicKey.load_pkcs1(public_key_data)
 
 with open("client_public_key.pem", "wb") as key_file:
     key_file.write(public_key_client.save_pkcs1())

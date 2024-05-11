@@ -55,7 +55,10 @@ except FileNotFoundError:
 # Create a new SQLite database or connect to an existing one
 conn = sqlite3.connect(DATABASE_NAME)
 cur = conn.cursor()
-(public_key_server, private_key_server)= rsa.newkeys(512)
+(public_key_server, private_key_server)= rsa.newkeys(2048)
+# Save the public key to a file
+with open("server_public_key.pem", "wb") as key_file:
+    key_file.write(public_key_server.save_pkcs1())
 # Check if the table 'users' already exists in the database
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
 if cur.fetchone() is None:
