@@ -10,16 +10,33 @@ def genG(p):
     q = random.randint(2, p - 1)
     return q
 
+def genC(p, g):
+    c= random.randint(1, p - 1)
+    return c
+
 def createH(p, g):
     alpha = number.getRandomRange(1, p - 1)
     h = pow(g, alpha, p)
     return h, alpha
+
+def genY(p,g):
+    beta = number.getRandomRange(1, p - 1)
+    y = pow(g, beta, p)
+    return y, beta
+
+def genZ(p, beta, c, secret_key):
+    z = (beta + secret_key * c) % (p)
+    return z
 
 def H(r, message):
     hash = hashlib.sha256()
     hash.update(str(r).encode())
     hash.update(message.encode())
     return int(hash.hexdigest(), 16)
+
+def verifyZ(p, g, h, c, z, y):
+    j = (pow(g, z, p) * pow(pow(h, c, p),-1,p)) % p
+    return j == y
 
 def keygen():
     p = genPrime()
