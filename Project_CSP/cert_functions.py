@@ -22,6 +22,8 @@ def CertVerify(cert_chain):
         store_ctx = crypto.X509StoreContext(store, p_cert)
         # verify the certificate chain
         store_ctx.verify_certificate()
+        # clear the store
+        store_ctx._store = None
         return 1  # Certificate chain is valid
     except Exception as e:
         print(f"Error: {e}")
@@ -126,3 +128,32 @@ def sign(message, sk):
     s= crypto.sign(sk, message.encode(), "sha256")
     return s
 
+def send_cert(dsa_cert, client):
+    cert= (crypto.dump_certificate(crypto.FILETYPE_PEM, dsa_cert).decode())
+    print(cert)
+    client.send(cert.encode())
+    print("------CERTIFICATE SENT------")
+
+def rsa_encrypt(message, public_key):
+    # Encrypt the message using RSA public key, this method uses OAEP padding scheme with SHA256 as the hash function
+    ciphertext = public_key.encrypt(
+        message.encode(),# message to encrypt
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()), # mask generation function
+            algorithm=hashes.SHA256(), # hash function
+            label=None # no label
+        )
+)
+    return ciphertext
+
+def rsa_decrypt(ciphertext, private_key):
+    # Decrypt the ciphertext using RSA private key, this method uses OAEP padding scheme with SHA256 as the hash function
+    plaintext = private_key.decrypt(
+    ciphertext,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None
+        )
+    )
+    return plaintext.decode()

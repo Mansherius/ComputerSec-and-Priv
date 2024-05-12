@@ -19,10 +19,16 @@ stateOrProvinceName = "Haryana" # ST
 organizationUnitName = "Ashoka University" # OU
 
 def create_self_cert(auth_key):
-    self_cert = certificate.create_certificate(auth_key, auth_key, id_s, server_name, "self_c.crt",
+    self_cert = certificate.create_certificate(auth_key, auth_key, id_s, server_name, "server_root.crt",
     countryName, localityName, stateOrProvinceName, org_y, organizationUnitName)
     return self_cert
-
+def create_rsa_cert(auth_key, issuer_cert):
+    rsa_key = certificate.create_rsa_key(server_name)
+    public_key_server= crypto.dump_publickey(crypto.FILETYPE_PEM, rsa_key)
+    private_key_server= crypto.dump_privatekey(crypto.FILETYPE_PEM, rsa_key)
+    new_cert = certificate.create_certificate(rsa_key, auth_key, id_s, server_name, "server_rsa.crt", 
+    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName, issuer_cert)
+    return new_cert, public_key_server, private_key_server
 # check if private_key_server file already exists
 try:
     with open("dsa_private_key.pem", "rb") as key_file:
@@ -38,7 +44,6 @@ with open("dsa_private_key.pem", "rb") as key_file:
     auth_private_key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
 with open("dsa_public_key.pem", "rb") as key_file:
     auth_public_key = crypto.load_publickey(crypto.FILETYPE_PEM, key_file.read())
-
 
 # check if self_cert file already exists
 try:
@@ -73,20 +78,16 @@ if cur.fetchone() is None:
 else:
     print(f"Table 'users' exists in {DATABASE_NAME}")
 
+rsa_cert, public_key_server_1, private_key_server_1= create_rsa_cert(auth_private_key, self_cert)
+pub_rsa_key= crypto.load_publickey(crypto.FILETYPE_PEM, public_key_server_1)
+priv_rsa_key= crypto.load_privatekey(crypto.FILETYPE_PEM, private_key_server_1)
 
-def create_rsa_cert():
-    rsa_key = certificate.create_rsa_key(server_name)
-    public_key_server= crypto.dump_publickey(crypto.FILETYPE_PEM, rsa_key)
-    private_key_server= crypto.dump_privatekey(crypto.FILETYPE_PEM, rsa_key)
-    new_cert = certificate.create_certificate(rsa_key, auth_private_key, id_s, server_name, "cert_S.crt", 
-    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName, self_cert)
-    return new_cert, public_key_server, private_key_server
+pub_rsa_key, priv_rsa_key= pub_rsa_key.to_cryptography_key(), priv_rsa_key.to_cryptography_key()
+print("Server RSA public key:", pub_rsa_key)
 
-def send_cert(dsa_cert, client):
-    cert= (crypto.dump_certificate(crypto.FILETYPE_PEM, dsa_cert).decode())
-    print(cert)
-    client.send(cert.encode())
-    print("------CERTIFICATE SENT------")
+with open("client_root.pem", "rb") as cert_file:
+    client_root_cert = cert_file.read()
+client_root_cert = crypto.load_certificate(crypto.FILETYPE_PEM, client_root_cert)
 
 def create_table_if_not_exists(cur, table_name, columns):
     cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
@@ -196,15 +197,14 @@ def server_stuff(server_socket):
     # Accept incoming connection and get client socket
         client_socket, addr = server_socket.accept()
         print(f"Connection established from {addr}")
-        with open("client_public_key.pem", "rb") as key_file:
+        '''with open("client_public_key.pem", "rb") as key_file:
             public_key_data = key_file.read()
         # format the key data as a public key
-        public_key_client = rsa.PublicKey.load_pkcs1(public_key_data)
+        client_pubkey) = rsa.PublicKey.load_pkcs1(public_key_data)'''
         # Receive data from the client
         data = client_socket.recv(2048)
         print(f"Received encrypted data: {data}")
-        data= rsa.decrypt(data, private_key_server)
-        data= data.decode()
+        data= certificate.rsa_decrypt(data, priv_rsa_key)
         print(f"Received data: {data}")
         action, args = data.split(',', 1)  # Split into action and arguments
 
@@ -270,7 +270,7 @@ def server_stuff(server_socket):
             # Implement logic to retrieve password for the given site
             password = retrieve_password(username, site_name)
             if password:
-                encrypted_password = rsa.encrypt(password.encode(), public_key_client)
+                encrypted_password = certificate.rsa_encrypt(password, client_pubkey)
                 client_socket.send(encrypted_password)
                 client_socket.close()
                 server_stuff(server_socket)
@@ -327,10 +327,12 @@ def schnorr_stuff(client_socket):
 
 def start_server():
     # create certificates for the server
-    dsa_cert, public_key_server, private_key_server= create_rsa_cert()
+    
     #public_key_server.to_cryptography_key().public_bytes(crypto.FILETYPE_PEM, None)
     #private_key_server.to_cryptography_key().private_bytes(crypto.FILETYPE_PEM, None)
+    
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind(('127.0.0.1', 65432))
     server_socket.listen(5)
     print("Server listening on port 65432...")
@@ -359,13 +361,37 @@ def start_server():
     elif msg.decode()=="verify":
         print("Verification starting...")
         client_socket.send("proceed".encode())
-        send_cert(dsa_cert, client_socket)
-        response= client_socket.recv(2048).decode()
-        client_socket.close()
-        server_socket.close()
+        certificate.send_cert(rsa_cert, client_socket)
+        response= client_socket.recv(2048)
+        response= certificate.rsa_decrypt(response, priv_rsa_key) 
+        print("Response received:", response)
         if response=="valid":
             print("Verified")
-            start_server()
+            client_socket.send("Verify".encode())
+            client_cert= client_socket.recv(2048).decode()
+            print("Client certificate received")
+            print("Client certificate:", client_cert)
+            # convert the certificate to a certificate object
+            client_cert = crypto.load_certificate(crypto.FILETYPE_PEM, client_cert)
+            # extract the public key from the certificate
+            client_public_key = client_cert.get_pubkey()
+            global client_pubkey 
+            client_pubkey= client_public_key.to_cryptography_key()
+            cert_chain= [client_cert, client_root_cert]
+            result= certificate.CertVerify(cert_chain)
+            if result:
+                print("Certificate chain is valid.")
+                client_socket.send("True".encode())
+                client_socket.close()
+                print("Closed client")
+                server_socket.close()
+                print("Closed server")
+                start_server()
+            else:
+                print("Certificate chain is not valid.")
+                client_socket.send("False".encode())
+                client_socket.close()
+                server_socket.close()
         else:
             print("Not verified")
     else:
@@ -374,6 +400,8 @@ def start_server():
         client_socket.close()
         server_socket.close()
         start_server()
+    # Close the server socket
+    server_socket.close()
 
 if __name__ == '__main__':
     start_server()

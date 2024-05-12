@@ -57,6 +57,64 @@ app = Flask(__name__)
 dash_app = dash.Dash(__name__, server=app, url_base_pathname='/dashboard/')
 server_address = '127.0.0.1'
 port = 65432
+server_name = "Client_App" # CN (Common name)
+id_s = "client@app.com" # id of the server
+org_y = "CS362/Spring2024" # organization name(O)
+
+# just in case we need to change these
+countryName = "NT" # C
+localityName = "Sonipat" # L
+stateOrProvinceName = "Haryana" # ST
+organizationUnitName = "Ashoka University" # OU
+
+def create_self_cert(auth_key):
+    self_cert = certificate.create_certificate(auth_key, auth_key, id_s, server_name, "client_root.crt",
+    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName)
+    return self_cert
+
+# check if client_private_key file already exists
+try:
+    with open("client_private_key.pem", "rb") as key_file:
+        client_private_key = key_file.read()
+    client_private_key = crypto.load_privatekey(crypto.FILETYPE_PEM, client_private_key)
+except FileNotFoundError:
+    # generate RSA key pair
+    client_private_key = certificate.create_dsa_key(server_name)
+    with open("client_private_key.pem", "wb") as key_file:
+        key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, client_private_key))
+    with open("client_public_key.pem", "wb") as key_file:
+        key_file.write(crypto.dump_publickey(crypto.FILETYPE_PEM, client_private_key))
+
+with open("client_private_key.pem", "rb") as key_file:
+    auth_private_key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
+with open("client_public_key.pem", "rb") as key_file:
+    auth_public_key = crypto.load_publickey(crypto.FILETYPE_PEM, key_file.read())
+
+# check if client_root.cert file already exists
+try:
+    with open("client_root.pem", "rb") as cert_file:
+        client_root_cert = cert_file.read()
+    client_root_cert = crypto.load_certificate(crypto.FILETYPE_PEM, client_root_cert)
+except FileNotFoundError:
+    # create a self-signed certificate for DSA key pair
+    client_root_cert = create_self_cert(auth_private_key)
+    with open("client_root.pem", "wb") as cert_file:
+        cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, client_root_cert))
+
+
+print("client_root_cert:",client_root_cert)
+
+def create_rsa_cert(auth_key, issuer_cert):
+    rsa_key = certificate.create_rsa_key(server_name)
+    public_key_server= crypto.dump_publickey(crypto.FILETYPE_PEM, rsa_key)
+    private_key_server= crypto.dump_privatekey(crypto.FILETYPE_PEM, rsa_key)
+    new_cert = certificate.create_certificate(rsa_key, auth_key, id_s, server_name, "client_rsa.crt", 
+    countryName, localityName, stateOrProvinceName, org_y, organizationUnitName, issuer_cert)
+    return new_cert, public_key_server, private_key_server
+
+client_cert, client_pkey, client_skey= create_rsa_cert(auth_private_key, client_root_cert)
+client_pkey, client_skey = crypto.load_publickey(crypto.FILETYPE_PEM, client_pkey), crypto.load_privatekey(crypto.FILETYPE_PEM, client_skey)
+client_pkey, client_skey = client_pkey.to_cryptography_key(), client_skey.to_cryptography_key()
 
 with open("self_cert.pem", "rb") as cert_file:
     self_cert = cert_file.read()
@@ -82,15 +140,30 @@ def verify_server(self_cert):
         # convert the certificate to a certificate object
         #self_cert = crypto.load_certificate(crypto.FILETYPE_PEM, self_cert)
         p_key_S= certificate.extract_public_key(cert)
+        server_pubkey= p_key_S.to_cryptography_key()
+        print("Server public key:",server_pubkey)
         # Verify the certificate
         cert_chain = [cert, self_cert]
         result = certificate.CertVerify(cert_chain)
         if result:
             print("Certificate is valid.")
-            client.send("valid".encode())
-            # close the connection
-            client.close()
-            return p_key_S
+            mes= certificate.rsa_encrypt("valid", server_pubkey)
+            client.send(mes)
+            m=client.recv(1024).decode()
+            if m=="Verify":
+                print("------RECEIVED VERIFICATION REQUEST FROM SERVER------")
+                certificate.send_cert(client_cert, client)
+                print("------SENT CERTIFICATE TO SERVER------")
+                ver= client.recv(1024).decode()
+                if ver=="True":
+                    print("Certificate is valid.")
+                    client.close()
+                    return server_pubkey
+                else:
+                    print("Certificate is invalid.")
+                    # close the connection
+                    client.close()
+                    return False
         else:
             print("Certificate is invalid.")
             client.send("close".encode())
@@ -99,12 +172,10 @@ def verify_server(self_cert):
             return False
 
 
-'''public_key_server = verify_server(self_cert)
+public_key_server = verify_server(self_cert)
 if public_key_server == False:
     print("Server verification failed!")
     exit()
-
-public_key_server.to_cryptography_key()'''
 
 def get_db():
     db = getattr(dbg, '_database', None)
@@ -144,10 +215,10 @@ app.secret_key = 'your_secret_key_here'
 (public_key_client, private_key_client) = rsa.newkeys(2048)
 with open("client_public_key.pem", "wb") as key_file:
     key_file.write(public_key_client.save_pkcs1())
-with open("server_public_key.pem", "rb") as key_file:
+'''with open("server_public_key.pem", "rb") as key_file:
     public_key_data = key_file.read()
 # format the key data as a public key
-public_key_server = rsa.PublicKey.load_pkcs1(public_key_data)
+public_key_server = rsa.PublicKey.load_pkcs1(public_key_data)'''
 
 with open("client_public_key.pem", "wb") as key_file:
     key_file.write(public_key_client.save_pkcs1())
@@ -241,7 +312,7 @@ def register():
                 client_socket.close()
                 action = 'register'
                 credentials = f"{action},{username}\n{p}\n{g}\n{h}"
-                encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
+                encrypted_credentials = certificate.rsa_encrypt(credentials, public_key_server)
                 client_socket_2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 client_socket_2.connect((server_address, port))
                 client_socket_2.send(encrypted_credentials)
@@ -350,10 +421,10 @@ def retrieve_password(n_clicks, site_name):
     action = 'retrieve'
     user= str(session['username'])
     credentials = f"{action},{user}\n{site_name}"
-    encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
+    encrypted_credentials = certificate.rsa_encrypt(credentials, public_key_server)
     client_socket.send(encrypted_credentials)
     response = client_socket.recv(2048)
-    response = rsa.decrypt(response, private_key_client).decode()
+    response = certificate.rsa_decrypt(response, client_skey)
     client_socket.close()  # Close the socket after receiving the response
 
     if response != "Password not found.":
@@ -391,7 +462,7 @@ def add_new_site(n_clicks, new_site_name, new_password, new_name):
     action = 'add'
     user= str(session['username'])
     credentials = f"{action},{user}\n{new_site_name}\n{new_password}\n{new_name}"
-    encrypted_credentials = rsa.encrypt(credentials.encode(), public_key_server)
+    encrypted_credentials = certificate.rsa_encrypt(credentials, public_key_server)
     client_socket.send(encrypted_credentials)
     response = client_socket.recv(2048).decode()
     client_socket.close()  # Close the socket after receiving the response
