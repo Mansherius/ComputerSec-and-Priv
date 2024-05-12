@@ -10,7 +10,7 @@ def genG(p):
     q = random.randint(2, p - 1)
     return q
 
-def genC(p, g):
+def genC(p):
     c= random.randint(1, p - 1)
     return c
 
@@ -25,7 +25,7 @@ def genY(p,g):
     return y, beta
 
 def genZ(p, beta, c, secret_key):
-    z = (beta + secret_key * c) % (p)
+    z = (beta + (secret_key * c)) % (p-1)
     return z
 
 def H(r, message):
@@ -36,6 +36,7 @@ def H(r, message):
 
 def verifyZ(p, g, h, c, z, y):
     j = (pow(g, z, p) * pow(pow(h, c, p),-1,p)) % p
+    print("This is J: ", j)
     return j == y
 
 def keygen():

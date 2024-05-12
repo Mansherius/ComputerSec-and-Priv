@@ -245,9 +245,27 @@ def register():
                 client_socket_2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 client_socket_2.connect((server_address, port))
                 client_socket_2.send(encrypted_credentials)
-                client_socket_2.close()
-                session['username'] = username
-                return redirect('/login')
+                '''
+                This is where we will conduct the schnorr protocol test
+                '''
+                startState = client_socket_2.recv(2048).decode()
+                if startState == "start":
+                    y, beta = schnorr.genY(int(p), int(g))
+                    client_socket_2.send(str(y).encode())
+                    # Recieve the challenge from the server
+                    c = int(client_socket_2.recv(2048).decode())
+                    z = schnorr.genZ(int(p), beta, c, alpha)
+                    # Send z to the server
+                    client_socket_2.send(str(z).encode())
+                    # Recieve the server's response
+                    response = client_socket_2.recv(2048).decode()
+                    if response == "verified":
+                        client_socket_2.close()
+                        session['username'] = username
+                        return redirect('/login')
+                    else:
+                        client_socket_2.close()
+                        return redirect('/register')
             else:
                 return redirect('/register')
         else:

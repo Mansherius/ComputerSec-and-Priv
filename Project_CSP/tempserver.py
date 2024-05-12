@@ -211,12 +211,40 @@ def server_stuff(server_socket):
         if action == 'register':
             username, p,g,h= args.split('\n')
             print("REGISTERING NEW USER...")
-            # insert the p,g,h into a table users_pk
-            cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
-            conn.commit()
-            print("New user registered")
-            client_socket.close()
-            return None
+            '''
+            Before we can add the users p, g, h vals, we need to use the Schnorr protocol
+            to verify that the client is who they say they are
+            '''
+            # Send a start message to the client for the challenge
+            client_socket.send("start".encode())
+            # Receive the y from the client
+            y = client_socket.recv(2048).decode()
+            y = int(y)
+            print("This is Y:", y)
+            # Generate a random number from 1 to p-1
+            c = schnorr.genC(int(p))
+            print("This is C:", c)
+            # Send the challenge to the client
+            client_socket.send(str(c).encode())
+            # Receive the response z from the client
+            z = int(client_socket.recv(2048).decode())
+            print("This is Z:", z)
+            # Now that we have recieved the response, we can verify the client
+            protocol = schnorr.verifyZ(int(p), int(g), int(h), int(c), int(z), int(y))
+            if protocol:
+                print("Client verified")
+                # send the verification announcement to the client
+                client_socket.send("verified".encode())
+                # insert the p,g,h into a table users_pk
+                cur.execute('INSERT INTO users_pk (username, p, g, h) VALUES (?, ?, ?, ?)', (username, p, g, h))
+                conn.commit()
+                print("New user registered")
+                client_socket.close()
+                return None
+            else:
+                print("Client not verified")
+                client_socket.close()
+                return None
         elif action == 'login':
             username, password = args.split('\n')
             print("LOGGING IN USER...")
