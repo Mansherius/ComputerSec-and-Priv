@@ -305,11 +305,13 @@ def schnorr_stuff(client_socket):
     data= client_socket.recv(1024).decode()
     print(f"Received data: {data}")
     # split the data into the signature, public key and the message(username)
-    message, signatureC, signatureZ = data.split('\n')
-    # convert user from binary to string
+    message, signatureC, signatureZ, message1 = data.split('\n')
+    # convert message from binary to string
     message_i = ''.join(chr(int(message[i:i+8], 2)) for i in range(0, len(message), 8))
+    # Convert username from binary to string
+    message_j = ''.join(chr(int(message1[i:i+8], 2)) for i in range(0, len(message1), 8))
     # get the public key of the client from the table users_pk
-    cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (message_i,))
+    cur.execute("SELECT p, g, h FROM users_pk WHERE username = ?", (message_j,))
     publicKey = cur.fetchone()
     # convert publicKey into a list
     p, g, h = int(publicKey[0]), int(publicKey[1]), int(publicKey[2])

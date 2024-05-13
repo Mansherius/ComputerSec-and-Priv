@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, redirect, session
 from flask import g as dbg
 import socket
 import rsa
-import hashlib
+import time
 import sqlite3
 from Crypto.Util import number
 import schnorr
@@ -270,10 +270,15 @@ def login():
                     alpha = cur.fetchone()
                     # convert alpha into a string
                     alpha = int(alpha[0]) # Take from a file labelled alpha val from the user system
-                    message = ''.join(format(ord(i), '08b') for i in username) # Convert the username to binary
+                    # take the current time and store it in a message
+                    message = str(time.time())
+                    # Convert the message to binary
+                    message = ''.join(format(ord(i), '08b') for i in message)
+                    # store the username in a message
+                    message1 = ''.join(format(ord(i), '08b') for i in username)
                     signatureC, signatureZ = schnorr.sign(message, alpha, p, g, h)
                     # Send the signature to the server along with the username and the public key
-                    client_socket.send(f"{message}\n{signatureC}\n{signatureZ}".encode())
+                    client_socket.send(f"{message}\n{signatureC}\n{signatureZ}\n{message1}".encode())
                     resp = client_socket.recv(2048).decode() # This will be the result of the verification
                     if resp == "True":
                         session['username'] = username
